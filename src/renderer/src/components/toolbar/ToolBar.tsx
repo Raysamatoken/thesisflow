@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button, Space, Typography, Tooltip, Divider, message } from 'antd';
 import {
   FileAddOutlined,
@@ -7,10 +7,18 @@ import {
   SortAscendingOutlined,
   DownloadOutlined,
   FileImageOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
+  UndoOutlined,
+  RedoOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
-import { useGraphStore, type AnyNode } from '../../stores/useGraphStore';
+import { useGraphStore } from '../../stores/useGraphStore';
+import { useHistoryStore } from '../../stores/useHistoryStore';
 import { FlowNodeShape } from '../../types';
-import type { FlowNode } from '../../types';
+import type { FlowNode, AnyNode, GraphEdge } from '../../types';
 import { getGraph } from '../../utils/getGraph';
 import { runAutoLayout } from '../../utils/autoLayout';
 
@@ -18,8 +26,7 @@ const { Text } = Typography;
 
 function getDefaultStartNode(): FlowNode {
   return {
-    id: 
-ode--,
+    id: `node-${Date.now()}`,
     shape: FlowNodeShape.Terminal,
     x: 300,
     y: 120,
@@ -50,6 +57,21 @@ const ToolBar: React.FC = () => {
   const buildProjectFile = useGraphStore((s) => s.buildProjectFile);
   const setCurrentFilePath = useGraphStore((s) => s.setCurrentFilePath);
   const markClean = useGraphStore((s) => s.markClean);
+  const undo = useGraphStore((s) => s.undo);
+  const redo = useGraphStore((s) => s.redo);
+  const canUndo = useGraphStore((s) => s.canUndo);
+  const canRedo = useGraphStore((s) => s.canRedo);
+  const nodes = useGraphStore((s) => s.nodes);
+  const edges = useGraphStore((s) => s.edges);
+  const selectedNode = useGraphStore((s) => s.selectedNode);
+  const selectedEdgeId = useGraphStore((s) => s.selectedEdgeId);
+  const copyNode = useGraphStore((s) => s.addNode);
+  const addEdge = useGraphStore((s) => s.addEdge);
+  const removeNode = useGraphStore((s) => s.removeNode);
+  const removeEdge = useGraphStore((s) => s.removeEdge);
+
+  // Clipboard for copy/paste
+  const [clipboard, setClipboard] = React.useState<{ nodes: AnyNode[]; edges: GraphEdge[] } | null>(null);
 
   // 新建项目：在渲染进程内直接完成，不依赖 IPC
   const handleNew = () => {
@@ -126,18 +148,18 @@ const ToolBar: React.FC = () => {
     try {
       let dataUrl: string;
       if (format === 'png') {
-        dataUrl = await graph.exportPNG({
+        dataUrl = await (graph.exportPNG({
           backgroundColor: '#ffffff',
           padding: 20,
           quality: 1,
           ratio: 2,
-        });
+        } as any) as unknown as Promise<string>);
       } else {
-        dataUrl = await graph.exportSVG({
+        dataUrl = await (graph.exportSVG({
           backgroundColor: '#ffffff',
           padding: 20,
           ratio: 2,
-        });
+        } as any) as unknown as Promise<string>);
       }
       const ok = await api.exportImage(dataUrl, format);
       if (ok) {
@@ -147,6 +169,168 @@ const ToolBar: React.FC = () => {
       message.error('导出失败');
     }
   };
+
+  // Zoom controls
+  const handleZoomIn = () => {
+    const graph = getGraph();
+    if (graph) {
+      graph.zoom(1.2);
+    }
+  };
+
+  const handleZoomOut = () => {
+    const graph = getGraph();
+    if (graph) {
+      graph.zoom(0.8);
+    }
+  };
+
+  const handleZoomReset = () => {
+    const graph = getGraph();
+    if (graph) {
+      graph.zoom(1);
+    }
+  };
+
+  const handleZoomFit = () => {
+    const graph = getGraph();
+    if (graph && nodeCount > 0) {
+      graph.zoomToFit({ padding: 40 });
+    }
+  };
+
+  // Undo/Redo
+  const handleUndo = () => {
+    if (canUndo()) {
+      undo();
+      message.success('已撤销');
+    }
+  };
+
+  const handleRedo = () => {
+    if (canRedo()) {
+      redo();
+      message.success('已重做');
+    }
+  };
+
+  // Copy/Paste
+  const handleCopy = () => {
+    if (selectedNode) {
+      // Copy selected node
+      const nodeToCopy = selectedNode;
+      const connectedEdges = edges.filter(
+        (e) => endpointId(e.source) === nodeToCopy.id || endpointId(e.target) === nodeToCopy.id
+      );
+      setClipboard({ nodes: [nodeToCopy], edges: connectedEdges });
+      message.success('已复制节点');
+    } else if (selectedEdgeId) {
+      const edgeToCopy = edges.find((e) => e.id === selectedEdgeId);
+      if (edgeToCopy) {
+        setClipboard({ nodes: [], edges: [edgeToCopy] });
+        message.success('已复制连线');
+      }
+    }
+  };
+
+  const handlePaste = () => {
+    if (!clipboard) return;
+    
+    const offset = 20;
+    const newNodes: AnyNode[] = clipboard.nodes.map((node) => ({
+      ...node,
+      id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      x: node.x + offset,
+      y: node.y + offset,
+    }));
+
+    const nodeIdMap = new Map<string, string>();
+    newNodes.forEach((newNode, i) => {
+      nodeIdMap.set(clipboard.nodes[i].id, newNode.id);
+    });
+
+    const newEdges: GraphEdge[] = clipboard.edges.map((edge, i) => ({
+      ...edge,
+      id: `edge-${Date.now()}-${i}`,
+      source: typeof edge.source === 'string' 
+        ? nodeIdMap.get(edge.source) ?? edge.source 
+        : { ...edge.source, cell: nodeIdMap.get(edge.source.cell) ?? edge.source.cell },
+      target: typeof edge.target === 'string' 
+        ? nodeIdMap.get(edge.target) ?? edge.target 
+        : { ...edge.target, cell: nodeIdMap.get(edge.target.cell) ?? edge.target.cell },
+    }));
+
+    newNodes.forEach((node) => copyNode(node));
+    newEdges.forEach((edge) => addEdge(edge));
+    
+    message.success('已粘贴');
+  };
+
+  function endpointId(ep: GraphEdge['source'] | GraphEdge['target']): string {
+    return typeof ep === 'string' ? ep : ep.cell;
+  }
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const isCtrl = e.ctrlKey || e.metaKey;
+      const isShift = e.shiftKey;
+
+      if (isCtrl && e.key === 'z' && !isShift) {
+        e.preventDefault();
+        handleUndo();
+      } else if (isCtrl && e.key === 'z' && isShift) {
+        e.preventDefault();
+        handleRedo();
+      } else if (isCtrl && e.key === 'y') {
+        e.preventDefault();
+        handleRedo();
+      } else if (isCtrl && e.key === 'c') {
+        e.preventDefault();
+        handleCopy();
+      } else if (isCtrl && e.key === 'v') {
+        e.preventDefault();
+        handlePaste();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedNode) {
+          e.preventDefault();
+          removeNode(selectedNode.id);
+        } else if (selectedEdgeId) {
+          e.preventDefault();
+          removeEdge(selectedEdgeId);
+        }
+      } else if (isCtrl && e.key === '0') {
+        e.preventDefault();
+        handleZoomReset();
+      } else if (isCtrl && e.key === '9') {
+        e.preventDefault();
+        handleZoomFit();
+      } else if (isCtrl && e.key === '=' || isCtrl && e.key === '+') {
+        e.preventDefault();
+        handleZoomIn();
+      } else if (isCtrl && e.key === '-') {
+        e.preventDefault();
+        handleZoomOut();
+      } else if (isCtrl && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      } else if (isCtrl && e.key === 'n') {
+        e.preventDefault();
+        handleNew();
+      } else if (isCtrl && e.key === 'o') {
+        e.preventDefault();
+        handleOpen();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canUndo, canRedo, selectedNode, selectedEdgeId, clipboard, nodes, edges]);
 
   return (
     <div
@@ -168,19 +352,41 @@ const ToolBar: React.FC = () => {
 
       <Space size={4} split={<Divider type="vertical" />}>
         <Space size={4}>
-          <Tooltip title="新建项目">
+          <Tooltip title="新建项目 (Ctrl+N)">
             <Button size="small" icon={<FileAddOutlined />} onClick={handleNew}>
               新建
             </Button>
           </Tooltip>
-          <Tooltip title="打开项目文件">
+          <Tooltip title="打开项目文件 (Ctrl+O)">
             <Button size="small" icon={<FolderOpenOutlined />} onClick={handleOpen}>
               打开
             </Button>
           </Tooltip>
-          <Tooltip title={currentFilePath ? '保存到当前路径' : '另存为…'}>
+          <Tooltip title={currentFilePath ? '保存到当前路径 (Ctrl+S)' : '另存为… (Ctrl+S)'}>
             <Button size="small" type="primary" icon={<SaveOutlined />} onClick={handleSave}>
               保存
+            </Button>
+          </Tooltip>
+        </Space>
+        <Space size={4}>
+          <Tooltip title="撤销 (Ctrl+Z)">
+            <Button size="small" icon={<UndoOutlined />} onClick={handleUndo} disabled={!canUndo()}>
+              撤销
+            </Button>
+          </Tooltip>
+          <Tooltip title="重做 (Ctrl+Y / Ctrl+Shift+Z)">
+            <Button size="small" icon={<RedoOutlined />} onClick={handleRedo} disabled={!canRedo()}>
+              重做
+            </Button>
+          </Tooltip>
+          <Tooltip title="复制 (Ctrl+C)">
+            <Button size="small" icon={<CopyOutlined />} onClick={handleCopy} disabled={!selectedNode && !selectedEdgeId}>
+              复制
+            </Button>
+          </Tooltip>
+          <Tooltip title="粘贴 (Ctrl+V)">
+            <Button size="small" onClick={handlePaste} disabled={!clipboard}>
+              粘贴
             </Button>
           </Tooltip>
         </Space>
@@ -200,6 +406,28 @@ const ToolBar: React.FC = () => {
           <Tooltip title="导出为矢量 SVG">
             <Button size="small" icon={<DownloadOutlined />} onClick={() => handleExport('svg')}>
               导出 SVG
+            </Button>
+          </Tooltip>
+        </Space>
+        <Space size={4}>
+          <Tooltip title="放大 (Ctrl++)">
+            <Button size="small" icon={<ZoomInOutlined />} onClick={handleZoomIn}>
+              放大
+            </Button>
+          </Tooltip>
+          <Tooltip title="缩小 (Ctrl+-)">
+            <Button size="small" icon={<ZoomOutOutlined />} onClick={handleZoomOut}>
+              缩小
+            </Button>
+          </Tooltip>
+          <Tooltip title="适应画布 (Ctrl+0)">
+            <Button size="small" icon={<FullscreenOutlined />} onClick={handleZoomFit}>
+              适应
+            </Button>
+          </Tooltip>
+          <Tooltip title="实际大小 (Ctrl+9)">
+            <Button size="small" icon={<FullscreenExitOutlined />} onClick={handleZoomReset}>
+              100%
             </Button>
           </Tooltip>
         </Space>

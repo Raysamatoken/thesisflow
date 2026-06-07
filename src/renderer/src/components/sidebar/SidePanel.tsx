@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
 import { Space } from 'antd';
 import type { Graph } from '@antv/x6';
-import { useGraphStore, EDGE_PRESETS, type AnyNode } from '../../stores/useGraphStore';
-import type { FlowNode, ModuleNode } from '../../types';
-import { FlowNodeShape, ModuleNodeShape } from '../../types';
+import { useGraphStore, EDGE_PRESETS } from '../../stores/useGraphStore';
+import { AnyNode, FlowNode, ModuleNode, FlowNodeShape, ModuleNodeShape } from '../../types';
 
 interface NodeTemplate {
   shape: string;

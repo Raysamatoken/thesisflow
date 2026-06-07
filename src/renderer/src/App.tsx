@@ -1,6 +1,6 @@
 // =====================================================================
 // ThesisFlow - 应用根组件
-// 顶部工具栏 + 三栏布局：左侧节点库 | 中间画布 | 右侧属性面板
+// 顶部工具栏 + 标签页 + 三栏布局：左侧节点库 | 中间画布 | 右侧属性面板
 // =====================================================================
 
 import React from 'react';
@@ -9,6 +9,7 @@ import ToolBar from './components/toolbar/ToolBar';
 import SidePanel from './components/sidebar/SidePanel';
 import GraphCanvas from './components/graph-editor/GraphCanvas';
 import PropertyPanel from './components/property-panel/PropertyPanel';
+import SheetTabs from './components/sheet-tabs/SheetTabs';
 
 const { Sider, Content } = Layout;
 
@@ -20,6 +21,9 @@ const App: React.FC = () => {
     <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       {/* ======== 顶部：工具栏 ======== */}
       <ToolBar />
+
+      {/* ======== 标签页栏 ======== */}
+      <SheetTabs />
 
       {/* ======== 下方：三栏主体 ======== */}
       <Layout>

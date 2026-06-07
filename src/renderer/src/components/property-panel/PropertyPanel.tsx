@@ -1,14 +1,11 @@
 import React, { useEffect } from 'react';
 import { Form, Input, InputNumber, ColorPicker, Empty, Typography, Divider, Button, Popconfirm } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
-import { useGraphStore, type AnyNode } from '../../stores/useGraphStore';
+import { useGraphStore } from '../../stores/useGraphStore';
+import { AnyNode, isFlowNode } from '../../types';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
-
-function isFlowNode(node: AnyNode): boolean {
-  return node.shape.startsWith('flow-');
-}
 
 const PropertyPanel: React.FC = () => {
   const selectedNode = useGraphStore((s) => s.selectedNode);

@@ -1,7 +1,7 @@
 import { Graph as AntvGraph } from '@antv/graphlib';
 import { DagreLayout } from '@antv/layout';
-import { useGraphStore, type AnyNode } from '../stores/useGraphStore';
-import type { GraphEdge, EdgeEndpoint } from '../types';
+import { useGraphStore } from '../stores/useGraphStore';
+import { AnyNode, GraphEdge, EdgeEndpoint } from '../types';
 
 function toNodeId(ep: EdgeEndpoint): string {
   return typeof ep === 'string' ? ep : ep.cell;
@@ -30,11 +30,13 @@ export async function runAutoLayout(options?: DagreOptions): Promise<void> {
       id: n.id,
       width: n.width,
       height: n.height,
+      data: {},
     })),
     edges: edges.map((e, i) => ({
       id: `edge-${i}`,
       source: toNodeId(e.source),
       target: toNodeId(e.target),
+      data: {},
     })),
   });
 
@@ -49,9 +51,9 @@ export async function runAutoLayout(options?: DagreOptions): Promise<void> {
   // Build position map; dagre returns center coords
   const posMap = new Map<string, { x: number; y: number }>();
   for (const rn of result.nodes) {
-    const orig = nodes.find((n) => n.id === rn.id);
+    const orig = nodes.find((n) => n.id === String(rn.id));
     if (orig) {
-      posMap.set(rn.id, {
+      posMap.set(String(rn.id), {
         x: rn.data.x - orig.width / 2,
         y: rn.data.y - orig.height / 2,
       });

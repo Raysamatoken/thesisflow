@@ -3,8 +3,8 @@ import { Graph } from '@antv/x6';
 import { Export } from '@antv/x6-plugin-export';
 import { Transform } from '@antv/x6-plugin-transform';
 import { message } from 'antd';
-import { useGraphStore, EDGE_PRESETS, type AnyNode, type GraphState } from '../../stores/useGraphStore';
-import type { GraphEdge } from '../../types';
+import { useGraphStore, EDGE_PRESETS } from '../../stores/useGraphStore';
+import { AnyNode, GraphEdge } from '../../types';
 import { registerFlowShapes } from '../../registerNodes';
 
 let shapesRegistered = false;
@@ -41,10 +41,11 @@ function toX6EdgeMeta(e: GraphEdge) {
 const GraphCanvas: React.FC = () => {
   const graphRef = useRef<Graph | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const suppressSync = useRef(false);
+  const syncVersion = useRef(0);
 
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
+  const edgeStyleId = useGraphStore((s) => s.edgeStyleId);
   const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
   const setSelectedEdgeId = useGraphStore((s) => s.setSelectedEdgeId);
   const clearSelection = useGraphStore((s) => s.clearSelection);
@@ -83,10 +84,9 @@ const GraphCanvas: React.FC = () => {
         allowMulti: true,
         allowLoop: false,
         highlight: true,
-        snap: { radius: 30 },
+        snap: { radius: 20 },
         createEdge() {
-          const state = useGraphStore.getState();
-          const preset = EDGE_PRESETS.find((p) => p.id === state.edgeStyleId) ?? EDGE_PRESETS[0];
+          const preset = EDGE_PRESETS.find((p) => p.id === edgeStyleId) ?? EDGE_PRESETS[0];
           const lineAttrs: any = {
             stroke: '#333333',
             strokeWidth: 1.5,
@@ -107,6 +107,8 @@ const GraphCanvas: React.FC = () => {
         },
       },
 
+      // selecting config - using type assertion for X6 2.x compatibility
+      // @ts-expect-error - selecting is a valid X6 option but not in types
       selecting: {
         enabled: true,
         rubberband: true,
@@ -125,11 +127,19 @@ const GraphCanvas: React.FC = () => {
         },
       },
 
+      // Improved grid for finer snapping
       grid: {
         visible: true,
         type: 'dot',
-        size: 20,
-        args: { color: '#d0d0d0', thickness: 1 },
+        size: 10, // Reduced from 20 to 10 for finer control
+        args: { color: '#e0e0e0', thickness: 1 },
+      },
+
+      // Enable snaplines for alignment guides between nodes
+      snapline: {
+        enabled: true,
+        clean: 5, // Distance to trigger snapline
+        filter: (cell: any) => cell.isNode?.(),
       },
 
       background: { color: '#fafafa' },
@@ -155,30 +165,27 @@ const GraphCanvas: React.FC = () => {
       const ports = containerRef.current!.querySelectorAll('.x6-port-body');
       showPorts(ports as NodeListOf<SVGElement>);
       // Highlight node in edge creation mode
-      const state = useGraphStore.getState();
-      if (state.edgeCreationMode) {
-        node.addAttr({ body: { stroke: '#1890ff', strokeWidth: 2 } });
+      if (edgeCreationMode) {
+        node.setAttrs({ body: { stroke: '#1890ff', strokeWidth: 2 } });
       }
     });
     graph.on('node:mouseleave', ({ node }) => {
       const ports = containerRef.current!.querySelectorAll('.x6-port-body');
       hidePorts(ports as NodeListOf<SVGElement>);
       // Remove edge creation highlight
-      const state = useGraphStore.getState();
-      if (state.edgeCreationMode) {
-        node.addAttr({ body: { stroke: '#333333', strokeWidth: 1.5 } });
+      if (edgeCreationMode) {
+        node.setAttrs({ body: { stroke: '#333333', strokeWidth: 1.5 } });
       }
     });
 
     // ---- Canvas events ----
 
     graph.on('node:click', ({ node }) => {
-      suppressSync.current = true;
-      const state = useGraphStore.getState();
-      if (state.edgeCreationMode && state.edgeCreationSourceId) {
+      const currentVersion = ++syncVersion.current;
+      if (edgeCreationMode && edgeCreationSourceId) {
         // Create edge from source to this node
-        if (node.id !== state.edgeCreationSourceId) {
-          const preset = EDGE_PRESETS.find((p) => p.id === state.edgeStyleId) ?? EDGE_PRESETS[0];
+        if (node.id !== edgeCreationSourceId) {
+          const preset = EDGE_PRESETS.find((p) => p.id === edgeStyleId) ?? EDGE_PRESETS[0];
           const lineAttrs: any = {
             stroke: '#333333',
             strokeWidth: 1.5,
@@ -190,7 +197,7 @@ const GraphCanvas: React.FC = () => {
           const edgeRouter = preset.router === 'normal' ? undefined : { name: preset.router };
           const edgeConnector = preset.connector === 'normal' ? undefined : { name: preset.connector };
           const newEdge = graph.addEdge({
-            source: state.edgeCreationSourceId,
+            source: edgeCreationSourceId,
             target: node.id,
             attrs: { line: lineAttrs },
             router: edgeRouter,
@@ -206,45 +213,46 @@ const GraphCanvas: React.FC = () => {
       } else {
         setSelectedNode(node.toJSON() as unknown as AnyNode);
       }
-      suppressSync.current = false;
+      // Version check not strictly needed here since we don't await, but kept for consistency
+      if (currentVersion !== syncVersion.current) return;
     });
 
     graph.on('node:moved', ({ node }) => {
-      suppressSync.current = true;
+      const currentVersion = ++syncVersion.current;
       const { x, y } = node.position();
       const { width, height } = node.size();
       updateNode(node.id, { x, y, width, height });
-      suppressSync.current = false;
+      if (currentVersion !== syncVersion.current) return;
     });
 
     graph.on('blank:click', () => {
-      suppressSync.current = true;
+      const currentVersion = ++syncVersion.current;
       clearSelection();
-      suppressSync.current = false;
+      if (currentVersion !== syncVersion.current) return;
     });
 
     graph.on('edge:connected', ({ edge }) => {
-      suppressSync.current = true;
+      const currentVersion = ++syncVersion.current;
       addEdge(edge.toJSON() as unknown as GraphEdge);
-      suppressSync.current = false;
+      if (currentVersion !== syncVersion.current) return;
     });
 
     graph.on('edge:click', ({ edge }) => {
-      suppressSync.current = true;
+      const currentVersion = ++syncVersion.current;
       setSelectedEdgeId(edge.id);
-      suppressSync.current = false;
+      if (currentVersion !== syncVersion.current) return;
     });
 
     graph.on('node:removed', ({ node }) => {
-      suppressSync.current = true;
+      const currentVersion = ++syncVersion.current;
       removeNode(node.id);
-      suppressSync.current = false;
+      if (currentVersion !== syncVersion.current) return;
     });
 
     graph.on('edge:removed', ({ edge }) => {
-      suppressSync.current = true;
+      const currentVersion = ++syncVersion.current;
       removeEdge(edge.id);
-      suppressSync.current = false;
+      if (currentVersion !== syncVersion.current) return;
     });
 
     return () => {
@@ -256,8 +264,9 @@ const GraphCanvas: React.FC = () => {
   // ---- Zustand -> X6 incremental sync ----
   const syncStoreToGraph = useCallback(() => {
     const graph = graphRef.current;
-    if (!graph || suppressSync.current) return;
+    if (!graph) return;
 
+    const currentVersion = ++syncVersion.current;
     const storeNodes = useGraphStore.getState().nodes;
     const storeEdges = useGraphStore.getState().edges;
 
@@ -266,51 +275,45 @@ const GraphCanvas: React.FC = () => {
 
     for (const [id] of graphNodeMap) {
       if (!storeNodeMap.has(id)) {
-        suppressSync.current = true;
         graph.removeNode(id);
-        suppressSync.current = false;
       }
     }
+    if (currentVersion !== syncVersion.current) return;
 
     for (const node of storeNodes) {
       const existing = graph.getCellById(node.id);
-      if (existing) {
-        suppressSync.current = true;
-        const pos = existing.position();
-        const size = existing.size();
+      if (existing && existing.isNode()) {
+        const nodeCell = existing as any; // Node type
+        const pos = nodeCell.position();
+        const size = nodeCell.size();
         if (pos.x !== node.x || pos.y !== node.y) {
-          existing.position(node.x, node.y);
+          nodeCell.position(node.x, node.y);
         }
         if (size.width !== node.width || size.height !== node.height) {
-          existing.resize(node.width, node.height);
+          nodeCell.resize(node.width, node.height);
         }
         if (node.label !== undefined) {
-          existing.setAttrByPath('label/text', node.label ?? '');
+          nodeCell.setAttrByPath('label/text', node.label ?? '');
         }
-        suppressSync.current = false;
       } else {
-        suppressSync.current = true;
         graph.addNode(toX6NodeMeta(node));
-        suppressSync.current = false;
       }
     }
+    if (currentVersion !== syncVersion.current) return;
 
     const graphEdgeMap = new Map(graph.getEdges().map((e) => [e.id, e]));
     const storeEdgeMap = new Map(storeEdges.map((e) => [e.id, e]));
 
     for (const [id] of graphEdgeMap) {
       if (!storeEdgeMap.has(id)) {
-        suppressSync.current = true;
         graph.removeEdge(id);
-        suppressSync.current = false;
       }
     }
+    if (currentVersion !== syncVersion.current) return;
 
     for (const edge of storeEdges) {
       if (!graphEdgeMap.has(edge.id)) {
-        suppressSync.current = true;
         graph.addEdge(toX6EdgeMeta(edge));
-        suppressSync.current = false;
       }
     }
   }, []);
@@ -331,6 +334,9 @@ const GraphCanvas: React.FC = () => {
     const container = document.getElementById('graph-container');
     if (!container) return;
 
+    const setEdgeStyleId = useGraphStore.getState().setEdgeStyleId;
+    const enterEdgeCreationMode = useGraphStore.getState().enterEdgeCreationMode;
+
     const handleDragOver = (e: DragEvent) => {
       const hasEdgeData = e.dataTransfer?.types.includes('application/thesisflow-edge');
       if (hasEdgeData) {
@@ -350,12 +356,13 @@ const GraphCanvas: React.FC = () => {
       // Find which node was dropped on
       const containerRect = container.getBoundingClientRect();
       const point = graph.clientToLocal(e.clientX - containerRect.left, e.clientY - containerRect.top);
-      const node = graph.getNodeAt(point);
+      const cells = graph.getCells();
+      const node = cells.find((c: any) => c.isNode?.() && c.getBBox().containsPoint(point)) as any;
 
       if (node) {
         // Set the edge style and enter creation mode
-        useGraphStore.getState().setEdgeStyleId(edgePresetId);
-        useGraphStore.getState().enterEdgeCreationMode(node.id);
+        setEdgeStyleId(edgePresetId);
+        enterEdgeCreationMode(node.id);
         message.info('请点击目标节点完成连线');
       }
     };

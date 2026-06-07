@@ -3,6 +3,8 @@
 // 统一导出 shared 类型，供渲染进程使用
 // =====================================================================
 
+import type { AnyNode, GraphEdge } from '../../../shared/types';
+
 export type {
   BusinessData,
   FlowNodeData,
@@ -16,12 +18,16 @@ export type {
   ProjectFile,
   FlowGraphJSON,
   ModuleGraphJSON,
+  AnyNode,
 } from '../../../shared/types';
 
 export {
   FlowNodeShape,
   ModuleNodeShape,
   GraphType,
+  isFlowNode,
+  isModuleNode,
+  getNodeData,
 } from '../../../shared/types';
 
 export type { ThesisFlowAPI } from '../../../shared/ipc';
@@ -30,11 +36,8 @@ export type { ThesisFlowAPI } from '../../../shared/ipc';
 //  渲染进程专用辅助类型
 // -------------------------------------------------------------------
 
-/** 统一的节点类型，用于需要同时处理流程图/模块图节点的场景 */
-export type AnyNode = import('../../../shared/types').FlowNode | import('../../../shared/types').ModuleNode;
-
 /** Graph.fromJSON 的兼容入参 */
 export type GraphJSONData = {
   nodes: AnyNode[];
-  edges: import('../../../shared/types').GraphEdge[];
+  edges: GraphEdge[];
 };

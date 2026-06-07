@@ -105,6 +105,28 @@ export interface ModuleNode extends Omit<Node.Metadata, 'data'> {
 }
 
 // -------------------------------------------------------------------
+//  3b. 判别联合类型 —— 类型安全的节点联合
+// -------------------------------------------------------------------
+
+/** 通过 shape 字段进行类型收窄的判别联合 */
+export type AnyNode = FlowNode | ModuleNode;
+
+/** 类型守卫：判断是否为流程图节点 */
+export function isFlowNode(node: AnyNode): node is FlowNode {
+  return node.shape.startsWith('flow-');
+}
+
+/** 类型守卫：判断是否为模块图节点 */
+export function isModuleNode(node: AnyNode): node is ModuleNode {
+  return node.shape.startsWith('module-');
+}
+
+/** 获取节点的业务数据（类型安全） */
+export function getNodeData(node: AnyNode): FlowNodeData | ModuleNodeData | undefined {
+  return node.data;
+}
+
+// -------------------------------------------------------------------
 //  4. 连线（GraphEdge）
 // -------------------------------------------------------------------
 
@@ -156,7 +178,7 @@ export interface GraphSheet {
   /** 图类型 */
   type: GraphType;
   /** 节点列表 */
-  nodes: (FlowNode | ModuleNode)[];
+  nodes: AnyNode[];
   /** 连线列表 */
   edges: GraphEdge[];
 }
