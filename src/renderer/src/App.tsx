@@ -1,6 +1,7 @@
 // =====================================================================
 // ThesisFlow - 应用根组件
 // 顶部工具栏 + 标签页 + 三栏布局：左侧节点库 | 中间画布 | 右侧属性面板
+// 底部：对齐工具栏（多选时显示）
 // =====================================================================
 
 import React from 'react';
@@ -10,6 +11,7 @@ import SidePanel from './components/sidebar/SidePanel';
 import GraphCanvas from './components/graph-editor/GraphCanvas';
 import PropertyPanel from './components/property-panel/PropertyPanel';
 import SheetTabs from './components/sheet-tabs/SheetTabs';
+import AlignmentToolbar from './components/alignment-toolbar/AlignmentToolbar';
 
 const { Sider, Content } = Layout;
 
@@ -47,6 +49,7 @@ const App: React.FC = () => {
           }}
         >
           <GraphCanvas />
+          <AlignmentToolbar />
         </Content>
 
         {/* 右侧：属性面板 */}

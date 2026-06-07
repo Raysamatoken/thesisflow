@@ -15,7 +15,6 @@ const ACADEMIC_STYLE = {
 };
 
 export function registerFlowShapes(): void {
-
   // flow-terminal (start/end): ellipse
   Graph.registerNode('flow-terminal', {
     inherit: 'ellipse',
@@ -122,14 +121,18 @@ export function registerFlowShapes(): void {
       stripeLeft: {
         stroke: ACADEMIC_STYLE.stroke,
         strokeWidth: 1.5,
-        x1: 12, y1: 2,
-        x2: 12, y2: 58,
+        x1: 12,
+        y1: 2,
+        x2: 12,
+        y2: 58,
       },
       stripeRight: {
         stroke: ACADEMIC_STYLE.stroke,
         strokeWidth: 1.5,
-        x1: 128, y1: 2,
-        x2: 128, y2: 58,
+        x1: 128,
+        y1: 2,
+        x2: 128,
+        y2: 58,
       },
       label: {
         fontSize: ACADEMIC_STYLE.fontSize,
@@ -253,11 +256,6 @@ function defaultPorts() {
         },
       },
     },
-    items: [
-      { group: 'top' },
-      { group: 'right' },
-      { group: 'bottom' },
-      { group: 'left' },
-    ],
+    items: [{ group: 'top' }, { group: 'right' }, { group: 'bottom' }, { group: 'left' }],
   };
 }

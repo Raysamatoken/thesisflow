@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
-import { Space } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Space, Input } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import type { Graph } from '@antv/x6';
 import { useGraphStore, EDGE_PRESETS } from '../../stores/useGraphStore';
-import { AnyNode, FlowNode, ModuleNode, FlowNodeShape, ModuleNodeShape } from '../../types';
+import type { AnyNode, ModuleNodeShape } from '../../types';
+import { FlowNodeShape } from '../../types';
 
 interface NodeTemplate {
   shape: string;
@@ -13,10 +15,22 @@ interface NodeTemplate {
 }
 
 const FLOW_TEMPLATES: NodeTemplate[] = [
-  { shape: FlowNodeShape.Terminal, label: '开始 / 结束', width: 120, height: 50, preview: 'ellipse' },
+  {
+    shape: FlowNodeShape.Terminal,
+    label: '开始 / 结束',
+    width: 120,
+    height: 50,
+    preview: 'ellipse',
+  },
   { shape: FlowNodeShape.Process, label: '处理步骤', width: 140, height: 60, preview: 'roundRect' },
   { shape: FlowNodeShape.Decision, label: '判断条件', width: 120, height: 80, preview: 'diamond' },
-  { shape: FlowNodeShape.IO, label: '输入 / 输出', width: 140, height: 60, preview: 'parallelogram' },
+  {
+    shape: FlowNodeShape.IO,
+    label: '输入 / 输出',
+    width: 140,
+    height: 60,
+    preview: 'parallelogram',
+  },
   { shape: FlowNodeShape.SubProcess, label: '子流程', width: 140, height: 60, preview: 'rect' },
 ];
 
@@ -28,15 +42,35 @@ const PreviewSVG: React.FC<{ type: NodeTemplate['preview'] }> = ({ type }) => {
   const common = { fill: '#ffffff', stroke: '#333333', strokeWidth: 1.5 };
   switch (type) {
     case 'ellipse':
-      return <svg width="48" height="28" viewBox="0 0 48 28"><ellipse cx="24" cy="14" rx="23" ry="13" {...common} /></svg>;
+      return (
+        <svg width="48" height="28" viewBox="0 0 48 28">
+          <ellipse cx="24" cy="14" rx="23" ry="13" {...common} />
+        </svg>
+      );
     case 'roundRect':
-      return <svg width="48" height="28" viewBox="0 0 48 28"><rect x="1" y="1" width="46" height="26" rx="4" ry="4" {...common} /></svg>;
+      return (
+        <svg width="48" height="28" viewBox="0 0 48 28">
+          <rect x="1" y="1" width="46" height="26" rx="4" ry="4" {...common} />
+        </svg>
+      );
     case 'diamond':
-      return <svg width="48" height="36" viewBox="0 0 48 36"><polygon points="24,1 47,18 24,35 1,18" {...common} /></svg>;
+      return (
+        <svg width="48" height="36" viewBox="0 0 48 36">
+          <polygon points="24,1 47,18 24,35 1,18" {...common} />
+        </svg>
+      );
     case 'parallelogram':
-      return <svg width="48" height="28" viewBox="0 0 48 28"><polygon points="8,1 47,1 40,27 1,27" {...common} /></svg>;
+      return (
+        <svg width="48" height="28" viewBox="0 0 48 28">
+          <polygon points="8,1 47,1 40,27 1,27" {...common} />
+        </svg>
+      );
     default:
-      return <svg width="48" height="28" viewBox="0 0 48 28"><rect x="1" y="1" width="46" height="26" {...common} /></svg>;
+      return (
+        <svg width="48" height="28" viewBox="0 0 48 28">
+          <rect x="1" y="1" width="46" height="26" {...common} />
+        </svg>
+      );
   }
 };
 
@@ -63,7 +97,7 @@ const EdgePreviewSVG: React.FC<{ presetId: string }> = ({ presetId }) => {
   }
 };
 
-function useDragToCanvas(templates: NodeTemplate[]) {
+function useDragToCanvas(_templates: NodeTemplate[]) {
   useEffect(() => {
     const container = document.getElementById('graph-container');
     if (!container) return;
@@ -78,7 +112,7 @@ function useDragToCanvas(templates: NodeTemplate[]) {
       const shapeName = e.dataTransfer?.getData('application/thesisflow-shape');
       if (!shapeName) return;
       const allTemplates = [...FLOW_TEMPLATES, ...MODULE_TEMPLATES];
-      const tpl = allTemplates.find((t) => t.shape === shapeName);
+      const tpl = allTemplates.find(t => t.shape === shapeName);
       if (!tpl) return;
       const graph: Graph | undefined = (container as any).__graph__;
       if (!graph) return;
@@ -89,18 +123,40 @@ function useDragToCanvas(templates: NodeTemplate[]) {
       const id = `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const isFlow = shapeName.startsWith('flow-');
       const newNode: AnyNode = isFlow
-        ? ({
-            id, shape: shapeName as FlowNodeShape,
-            x: graphPoint.x - tpl.width / 2, y: graphPoint.y - tpl.height / 2,
-            width: tpl.width, height: tpl.height, label: tpl.label,
-            data: { shape: shapeName as FlowNodeShape, color: '#ffffff', borderColor: '#333333', fontColor: '#333333', fontSize: 12, remark: '' },
-          } as FlowNode)
-        : ({
-            id, shape: shapeName as ModuleNodeShape,
-            x: graphPoint.x - tpl.width / 2, y: graphPoint.y - tpl.height / 2,
-            width: tpl.width, height: tpl.height, label: tpl.label,
-            data: { shape: shapeName as ModuleNodeShape, color: '#ffffff', borderColor: '#333333', fontColor: '#333333', fontSize: 12, remark: '' },
-          } as ModuleNode);
+        ? {
+            id,
+            shape: shapeName as FlowNodeShape,
+            x: graphPoint.x - tpl.width / 2,
+            y: graphPoint.y - tpl.height / 2,
+            width: tpl.width,
+            height: tpl.height,
+            label: tpl.label,
+            data: {
+              shape: shapeName as FlowNodeShape,
+              color: '#ffffff',
+              borderColor: '#333333',
+              fontColor: '#333333',
+              fontSize: 12,
+              remark: '',
+            },
+          }
+        : {
+            id,
+            shape: shapeName as ModuleNodeShape,
+            x: graphPoint.x - tpl.width / 2,
+            y: graphPoint.y - tpl.height / 2,
+            width: tpl.width,
+            height: tpl.height,
+            label: tpl.label,
+            data: {
+              shape: shapeName as ModuleNodeShape,
+              color: '#ffffff',
+              borderColor: '#333333',
+              fontColor: '#333333',
+              fontSize: 12,
+              remark: '',
+            },
+          };
       useGraphStore.getState().addNode(newNode);
     };
 
@@ -120,19 +176,26 @@ const NodeCard: React.FC<{ template: NodeTemplate }> = ({ template }) => {
   };
   return (
     <div
-      draggable onDragStart={handleDragStart}
+      draggable
+      onDragStart={handleDragStart}
       style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '8px 10px', marginBottom: 6, borderRadius: 6,
-        border: '1px solid #e8e8e8', background: '#fff',
-        cursor: 'grab', transition: 'box-shadow 0.15s, border-color 0.15s',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '8px 10px',
+        marginBottom: 6,
+        borderRadius: 6,
+        border: '1px solid #e8e8e8',
+        background: '#fff',
+        cursor: 'grab',
+        transition: 'box-shadow 0.15s, border-color 0.15s',
         userSelect: 'none',
       }}
-      onMouseEnter={(e) => {
+      onMouseEnter={e => {
         e.currentTarget.style.borderColor = '#91caff';
         e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.08)';
       }}
-      onMouseLeave={(e) => {
+      onMouseLeave={e => {
         e.currentTarget.style.borderColor = '#e8e8e8';
         e.currentTarget.style.boxShadow = 'none';
       }}
@@ -145,59 +208,108 @@ const NodeCard: React.FC<{ template: NodeTemplate }> = ({ template }) => {
 
 const SidePanel: React.FC = () => {
   useDragToCanvas([...FLOW_TEMPLATES, ...MODULE_TEMPLATES]);
-  const edgeStyleId = useGraphStore((s) => s.edgeStyleId);
-  const setEdgeStyleId = useGraphStore((s) => s.setEdgeStyleId);
+  const edgeStyleId = useGraphStore(s => s.edgeStyleId);
+  const setEdgeStyleId = useGraphStore(s => s.setEdgeStyleId);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredFlowTemplates = FLOW_TEMPLATES.filter(tpl =>
+    tpl.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredModuleTemplates = MODULE_TEMPLATES.filter(tpl =>
+    tpl.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* ---- Search box ---- */}
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+        <Input
+          placeholder="搜索节点..."
+          prefix={<SearchOutlined style={{ color: '#aaa' }} />}
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          size="small"
+          style={{ width: '100%' }}
+        />
+      </div>
+
       {/* ---- Flow nodes ---- */}
       <div style={{ padding: '12px 12px 0' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 8, letterSpacing: 1 }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#888',
+            marginBottom: 8,
+            letterSpacing: 1,
+          }}
+        >
           流程图
         </div>
-        {FLOW_TEMPLATES.map((tpl) => (
+        {filteredFlowTemplates.map(tpl => (
           <NodeCard key={tpl.shape} template={tpl} />
         ))}
       </div>
 
       {/* ---- Module nodes ---- */}
       <div style={{ padding: '16px 12px 0' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 8, letterSpacing: 1 }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#888',
+            marginBottom: 8,
+            letterSpacing: 1,
+          }}
+        >
           模块图
         </div>
-        {MODULE_TEMPLATES.map((tpl) => (
+        {filteredModuleTemplates.map(tpl => (
           <NodeCard key={tpl.shape} template={tpl} />
         ))}
       </div>
 
       {/* ---- Edge styles ---- */}
       <div style={{ padding: '16px 12px 0', borderTop: '1px solid #f0f0f0', marginTop: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 8, letterSpacing: 1 }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#888',
+            marginBottom: 8,
+            letterSpacing: 1,
+          }}
+        >
           连线样式（拖拽到节点上创建连线）
         </div>
         <Space direction="vertical" style={{ width: '100%' }}>
-          {EDGE_PRESETS.map((preset) => (
+          {EDGE_PRESETS.map(preset => (
             <div
               key={preset.id}
               draggable
-              onDragStart={(e) => {
+              onDragStart={e => {
                 e.dataTransfer.setData('application/thesisflow-edge', preset.id);
                 e.dataTransfer.effectAllowed = 'copy';
               }}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '6px 8px', borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 8px',
+                borderRadius: 6,
                 border: edgeStyleId === preset.id ? '1px solid #91caff' : '1px solid #e8e8e8',
                 background: edgeStyleId === preset.id ? '#e6f4ff' : '#fff',
-                cursor: 'grab', userSelect: 'none',
+                cursor: 'grab',
+                userSelect: 'none',
                 transition: 'box-shadow 0.15s, border-color 0.15s',
               }}
-              onMouseEnter={(ev) => {
+              onMouseEnter={ev => {
                 ev.currentTarget.style.borderColor = '#91caff';
                 ev.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.08)';
               }}
-              onMouseLeave={(ev) => {
-                ev.currentTarget.style.borderColor = edgeStyleId === preset.id ? '#91caff' : '#e8e8e8';
+              onMouseLeave={ev => {
+                ev.currentTarget.style.borderColor =
+                  edgeStyleId === preset.id ? '#91caff' : '#e8e8e8';
                 ev.currentTarget.style.boxShadow = 'none';
               }}
               onClick={() => setEdgeStyleId(preset.id)}

@@ -34,6 +34,18 @@ const thesisFlowApi = {
     return ipcRenderer.invoke('export-image', imageData, format);
   },
 
+  // ---- 最近文件 ----
+
+  /** 获取最近文件列表 */
+  getRecentFiles(): Promise<string[]> {
+    return ipcRenderer.invoke('get-recent-files');
+  },
+
+  /** 清空最近文件列表 */
+  clearRecentFiles(): Promise<void> {
+    return ipcRenderer.invoke('clear-recent-files');
+  },
+
   // ---- 窗口控制 ----
 
   minimize(): void {
@@ -64,10 +76,18 @@ const thesisFlowApi = {
     return () => ipcRenderer.removeListener('menu:save-project', listener);
   },
   onMenuExportImage(callback: (format: 'png' | 'svg') => void): () => void {
-    const listener = (_event: Electron.IpcRendererEvent, format: 'png' | 'svg') =>
-      callback(format);
+    const listener = (_event: Electron.IpcRendererEvent, format: 'png' | 'svg') => callback(format);
     ipcRenderer.on('menu:export-image', listener);
     return () => ipcRenderer.removeListener('menu:export-image', listener);
+  },
+
+  // ---- 自动保存 ----
+
+  /** 监听自动保存触发事件 */
+  onAutoSave(callback: () => void): () => void {
+    const listener = () => callback();
+    ipcRenderer.on('auto-save-trigger', listener);
+    return () => ipcRenderer.removeListener('auto-save-trigger', listener);
   },
 };
 

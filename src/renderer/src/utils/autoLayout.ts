@@ -1,7 +1,7 @@
 import { Graph as AntvGraph } from '@antv/graphlib';
 import { DagreLayout } from '@antv/layout';
 import { useGraphStore } from '../stores/useGraphStore';
-import { AnyNode, GraphEdge, EdgeEndpoint } from '../types';
+import type { AnyNode, EdgeEndpoint } from '../types';
 
 function toNodeId(ep: EdgeEndpoint): string {
   return typeof ep === 'string' ? ep : ep.cell;
@@ -26,7 +26,7 @@ export async function runAutoLayout(options?: DagreOptions): Promise<void> {
 
   // Build @antv/graphlib Graph for DagreLayout
   const g = new AntvGraph<any, any>({
-    nodes: nodes.map((n) => ({
+    nodes: nodes.map(n => ({
       id: n.id,
       width: n.width,
       height: n.height,
@@ -51,7 +51,7 @@ export async function runAutoLayout(options?: DagreOptions): Promise<void> {
   // Build position map; dagre returns center coords
   const posMap = new Map<string, { x: number; y: number }>();
   for (const rn of result.nodes) {
-    const orig = nodes.find((n) => n.id === String(rn.id));
+    const orig = nodes.find(n => n.id === String(rn.id));
     if (orig) {
       posMap.set(String(rn.id), {
         x: rn.data.x - orig.width / 2,
@@ -60,7 +60,7 @@ export async function runAutoLayout(options?: DagreOptions): Promise<void> {
     }
   }
 
-  const updatedNodes: AnyNode[] = nodes.map((n) => {
+  const updatedNodes: AnyNode[] = nodes.map(n => {
     const pos = posMap.get(n.id);
     return pos ? { ...n, x: pos.x, y: pos.y } : n;
   });

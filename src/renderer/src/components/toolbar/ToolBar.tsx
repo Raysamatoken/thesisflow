@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Button, Space, Typography, Tooltip, Divider, message } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Button, Space, Typography, Tooltip, Divider, message, Dropdown } from 'antd';
 import {
   FileAddOutlined,
   FolderOpenOutlined,
@@ -14,9 +14,10 @@ import {
   UndoOutlined,
   RedoOutlined,
   CopyOutlined,
+  ClockCircleOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useGraphStore } from '../../stores/useGraphStore';
-import { useHistoryStore } from '../../stores/useHistoryStore';
 import { FlowNodeShape } from '../../types';
 import type { FlowNode, AnyNode, GraphEdge } from '../../types';
 import { getGraph } from '../../utils/getGraph';
@@ -45,33 +46,36 @@ function getDefaultStartNode(): FlowNode {
 }
 
 const ToolBar: React.FC = () => {
-  const projectName = useGraphStore((s) => s.projectName);
-  const dirty = useGraphStore((s) => s.dirty);
-  const currentFilePath = useGraphStore((s) => s.currentFilePath);
-  const nodeCount = useGraphStore((s) => s.nodes.length);
+  const projectName = useGraphStore(s => s.projectName);
+  const dirty = useGraphStore(s => s.dirty);
+  const currentFilePath = useGraphStore(s => s.currentFilePath);
+  const nodeCount = useGraphStore(s => s.nodes.length);
 
-  const clearGraph = useGraphStore((s) => s.clearGraph);
-  const addNode = useGraphStore((s) => s.addNode);
-  const setProjectName = useGraphStore((s) => s.setProjectName);
-  const loadProject = useGraphStore((s) => s.loadProject);
-  const buildProjectFile = useGraphStore((s) => s.buildProjectFile);
-  const setCurrentFilePath = useGraphStore((s) => s.setCurrentFilePath);
-  const markClean = useGraphStore((s) => s.markClean);
-  const undo = useGraphStore((s) => s.undo);
-  const redo = useGraphStore((s) => s.redo);
-  const canUndo = useGraphStore((s) => s.canUndo);
-  const canRedo = useGraphStore((s) => s.canRedo);
-  const nodes = useGraphStore((s) => s.nodes);
-  const edges = useGraphStore((s) => s.edges);
-  const selectedNode = useGraphStore((s) => s.selectedNode);
-  const selectedEdgeId = useGraphStore((s) => s.selectedEdgeId);
-  const copyNode = useGraphStore((s) => s.addNode);
-  const addEdge = useGraphStore((s) => s.addEdge);
-  const removeNode = useGraphStore((s) => s.removeNode);
-  const removeEdge = useGraphStore((s) => s.removeEdge);
+  const clearGraph = useGraphStore(s => s.clearGraph);
+  const addNode = useGraphStore(s => s.addNode);
+  const setProjectName = useGraphStore(s => s.setProjectName);
+  const loadProject = useGraphStore(s => s.loadProject);
+  const buildProjectFile = useGraphStore(s => s.buildProjectFile);
+  const setCurrentFilePath = useGraphStore(s => s.setCurrentFilePath);
+  const markClean = useGraphStore(s => s.markClean);
+  const undo = useGraphStore(s => s.undo);
+  const redo = useGraphStore(s => s.redo);
+  const canUndo = useGraphStore(s => s.canUndo);
+  const canRedo = useGraphStore(s => s.canRedo);
+  const nodes = useGraphStore(s => s.nodes);
+  const edges = useGraphStore(s => s.edges);
+  const selectedNode = useGraphStore(s => s.selectedNode);
+  const selectedEdgeId = useGraphStore(s => s.selectedEdgeId);
+  const copyNode = useGraphStore(s => s.addNode);
+  const addEdge = useGraphStore(s => s.addEdge);
+  const removeNode = useGraphStore(s => s.removeNode);
+  const removeEdge = useGraphStore(s => s.removeEdge);
 
   // Clipboard for copy/paste
-  const [clipboard, setClipboard] = React.useState<{ nodes: AnyNode[]; edges: GraphEdge[] } | null>(null);
+  const [clipboard, setClipboard] = React.useState<{ nodes: AnyNode[]; edges: GraphEdge[] } | null>(
+    null
+  );
+  const [recentFiles, setRecentFiles] = useState<string[]>([]);
 
   // 新建项目：在渲染进程内直接完成，不依赖 IPC
   const handleNew = () => {
@@ -107,10 +111,7 @@ const ToolBar: React.FC = () => {
     }
     try {
       const projectFile = buildProjectFile();
-      const savedPath = await api.saveProject(
-        projectFile,
-        currentFilePath ?? undefined
-      );
+      const savedPath = await api.saveProject(projectFile, currentFilePath ?? undefined);
       if (savedPath) {
         setCurrentFilePath(savedPath);
         markClean();
@@ -120,6 +121,27 @@ const ToolBar: React.FC = () => {
       message.error('保存项目失败');
     }
   };
+
+  // Load recent files on mount
+  useEffect(() => {
+    const api = window.thesisFlow;
+    if (api?.getRecentFiles) {
+      api.getRecentFiles().then(setRecentFiles);
+    }
+  }, []);
+
+  // Auto-save listener
+  useEffect(() => {
+    const api = window.thesisFlow;
+    if (api?.onAutoSave) {
+      const cleanup = api.onAutoSave(() => {
+        if (dirty && currentFilePath) {
+          void handleSave();
+        }
+      });
+      return cleanup;
+    }
+  }, [dirty, currentFilePath, handleSave]);
 
   const handleAutoLayout = async () => {
     if (nodeCount === 0) {
@@ -220,12 +242,12 @@ const ToolBar: React.FC = () => {
       // Copy selected node
       const nodeToCopy = selectedNode;
       const connectedEdges = edges.filter(
-        (e) => endpointId(e.source) === nodeToCopy.id || endpointId(e.target) === nodeToCopy.id
+        e => endpointId(e.source) === nodeToCopy.id || endpointId(e.target) === nodeToCopy.id
       );
       setClipboard({ nodes: [nodeToCopy], edges: connectedEdges });
       message.success('已复制节点');
     } else if (selectedEdgeId) {
-      const edgeToCopy = edges.find((e) => e.id === selectedEdgeId);
+      const edgeToCopy = edges.find(e => e.id === selectedEdgeId);
       if (edgeToCopy) {
         setClipboard({ nodes: [], edges: [edgeToCopy] });
         message.success('已复制连线');
@@ -235,9 +257,9 @@ const ToolBar: React.FC = () => {
 
   const handlePaste = () => {
     if (!clipboard) return;
-    
+
     const offset = 20;
-    const newNodes: AnyNode[] = clipboard.nodes.map((node) => ({
+    const newNodes: AnyNode[] = clipboard.nodes.map(node => ({
       ...node,
       id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       x: node.x + offset,
@@ -252,21 +274,23 @@ const ToolBar: React.FC = () => {
     const newEdges: GraphEdge[] = clipboard.edges.map((edge, i) => ({
       ...edge,
       id: `edge-${Date.now()}-${i}`,
-      source: typeof edge.source === 'string' 
-        ? nodeIdMap.get(edge.source) ?? edge.source 
-        : { ...edge.source, cell: nodeIdMap.get(edge.source.cell) ?? edge.source.cell },
-      target: typeof edge.target === 'string' 
-        ? nodeIdMap.get(edge.target) ?? edge.target 
-        : { ...edge.target, cell: nodeIdMap.get(edge.target.cell) ?? edge.target.cell },
+      source:
+        typeof edge.source === 'string'
+          ? (nodeIdMap.get(edge.source) ?? edge.source)
+          : { ...edge.source, cell: nodeIdMap.get(edge.source.cell) ?? edge.source.cell },
+      target:
+        typeof edge.target === 'string'
+          ? (nodeIdMap.get(edge.target) ?? edge.target)
+          : { ...edge.target, cell: nodeIdMap.get(edge.target.cell) ?? edge.target.cell },
     }));
 
-    newNodes.forEach((node) => copyNode(node));
-    newEdges.forEach((edge) => addEdge(edge));
-    
+    newNodes.forEach(node => copyNode(node));
+    newEdges.forEach(edge => addEdge(edge));
+
     message.success('已粘贴');
   };
 
-  function endpointId(ep: GraphEdge['source'] | GraphEdge['target']): string {
+  function endpointId(ep: GraphEdge['source']): string {
     return typeof ep === 'string' ? ep : ep.cell;
   }
 
@@ -310,7 +334,7 @@ const ToolBar: React.FC = () => {
       } else if (isCtrl && e.key === '9') {
         e.preventDefault();
         handleZoomFit();
-      } else if (isCtrl && e.key === '=' || isCtrl && e.key === '+') {
+      } else if ((isCtrl && e.key === '=') || (isCtrl && e.key === '+')) {
         e.preventDefault();
         handleZoomIn();
       } else if (isCtrl && e.key === '-') {
@@ -325,6 +349,10 @@ const ToolBar: React.FC = () => {
       } else if (isCtrl && e.key === 'o') {
         e.preventDefault();
         handleOpen();
+      } else if (isCtrl && e.key === 'f') {
+        e.preventDefault();
+        // Open search in GraphCanvas via custom event
+        window.dispatchEvent(new CustomEvent('thesisflow:open-search'));
       }
     };
 
@@ -346,8 +374,14 @@ const ToolBar: React.FC = () => {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Text strong style={{ fontSize: 14 }}>{projectName}</Text>
-        {dirty && <Text type="secondary" style={{ fontSize: 12 }}>(未保存)</Text>}
+        <Text strong style={{ fontSize: 14 }}>
+          {projectName}
+        </Text>
+        {dirty && (
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            (未保存)
+          </Text>
+        )}
       </div>
 
       <Space size={4} split={<Divider type="vertical" />}>
@@ -362,6 +396,47 @@ const ToolBar: React.FC = () => {
               打开
             </Button>
           </Tooltip>
+          <Dropdown
+            menu={{
+              items: [
+                ...recentFiles.map((file, index) => ({
+                  key: `recent-${index}`,
+                  label: file.split(/[\\/]/).pop() || file,
+                  title: file,
+                  onClick: async () => {
+                    const api = window.thesisFlow;
+                    if (api) {
+                      // We need to open the specific file - for now just show message
+                      message.info(`打开: ${file}`);
+                    }
+                  },
+                })),
+                { type: 'divider' as const },
+                {
+                  key: 'clear-recent',
+                  label: '清空最近文件',
+                  icon: <DeleteOutlined />,
+                  danger: true,
+                  onClick: async () => {
+                    const api = window.thesisFlow;
+                    if (api?.clearRecentFiles) {
+                      await api.clearRecentFiles();
+                      setRecentFiles([]);
+                      message.success('已清空最近文件');
+                    }
+                  },
+                },
+              ],
+            }}
+            trigger={['click']}
+            placement="bottomLeft"
+          >
+            <Tooltip title="最近文件">
+              <Button size="small" icon={<ClockCircleOutlined />}>
+                最近
+              </Button>
+            </Tooltip>
+          </Dropdown>
           <Tooltip title={currentFilePath ? '保存到当前路径 (Ctrl+S)' : '另存为… (Ctrl+S)'}>
             <Button size="small" type="primary" icon={<SaveOutlined />} onClick={handleSave}>
               保存
@@ -380,7 +455,12 @@ const ToolBar: React.FC = () => {
             </Button>
           </Tooltip>
           <Tooltip title="复制 (Ctrl+C)">
-            <Button size="small" icon={<CopyOutlined />} onClick={handleCopy} disabled={!selectedNode && !selectedEdgeId}>
+            <Button
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={handleCopy}
+              disabled={!selectedNode && !selectedEdgeId}
+            >
               复制
             </Button>
           </Tooltip>

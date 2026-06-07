@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { GraphType } from '../types';
-import type { AnyNode, FlowNode, ModuleNode, GraphEdge, ProjectFile, GraphSheet } from '../types';
+import type { AnyNode, GraphEdge, ProjectFile, GraphSheet } from '../types';
 import { useHistoryStore } from './useHistoryStore';
 
 /** 连线样式预设 */
@@ -37,6 +37,7 @@ export interface GraphState {
   nodes: AnyNode[];
   edges: GraphEdge[];
   selectedNode: AnyNode | null;
+  selectedNodeIds: string[]; // For multi-selection alignment
   selectedEdgeId: string | null;
 
   projectName: string;
@@ -70,6 +71,8 @@ export interface GraphState {
   updateEdge: (edgeId: string, patch: Partial<GraphEdge>) => void;
 
   setSelectedNode: (node: AnyNode | null) => void;
+  setSelectedNodeIds: (ids: string[]) => void;
+  toggleNodeSelection: (nodeId: string) => void;
   setSelectedEdgeId: (id: string | null) => void;
   clearSelection: () => void;
 
@@ -91,6 +94,16 @@ export interface GraphState {
   renameSheet: (sheetId: string, name: string) => void;
   duplicateSheet: (sheetId: string) => string;
 
+  // Alignment & Distribution
+  alignLeft: () => void;
+  alignCenter: () => void;
+  alignRight: () => void;
+  alignTop: () => void;
+  alignMiddle: () => void;
+  alignBottom: () => void;
+  distributeHorizontal: () => void;
+  distributeVertical: () => void;
+
   // Undo/Redo
   undo: () => void;
   redo: () => void;
@@ -98,7 +111,7 @@ export interface GraphState {
   canRedo: () => boolean;
 }
 
-function endpointId(ep: GraphEdge['source'] | GraphEdge['target']): string {
+function endpointId(ep: GraphEdge['source']): string {
   return typeof ep === 'string' ? ep : ep.cell;
 }
 
@@ -113,6 +126,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   nodes: [],
   edges: [],
   selectedNode: null,
+  selectedNodeIds: [],
   selectedEdgeId: null,
   projectName: '未命名项目',
   currentFilePath: null,
@@ -171,17 +185,31 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   updateEdge: (edgeId: string, patch: Partial<GraphEdge>) => {
     set((state: GraphState) => ({
-      edges: state.edges.map((e: GraphEdge) =>
-        e.id === edgeId ? { ...e, ...patch } : e
-      ),
+      edges: state.edges.map((e: GraphEdge) => (e.id === edgeId ? { ...e, ...patch } : e)),
       dirty: true,
     }));
     pushHistoryIfNeeded(get);
   },
 
-  setSelectedNode: (node: AnyNode | null) => set({ selectedNode: node, selectedEdgeId: null }),
-  setSelectedEdgeId: (id: string | null) => set({ selectedEdgeId: id, selectedNode: null }),
-  clearSelection: () => set({ selectedNode: null, selectedEdgeId: null }),
+  setSelectedNode: (node: AnyNode | null) =>
+    set({ selectedNode: node, selectedNodeIds: node ? [node.id] : [], selectedEdgeId: null }),
+  setSelectedNodeIds: (ids: string[]) =>
+    set({
+      selectedNodeIds: ids,
+      selectedNode: ids.length === 1 ? (get().nodes.find(n => n.id === ids[0]) ?? null) : null,
+      selectedEdgeId: null,
+    }),
+  toggleNodeSelection: (nodeId: string) =>
+    set(state => ({
+      selectedNodeIds: state.selectedNodeIds.includes(nodeId)
+        ? state.selectedNodeIds.filter(id => id !== nodeId)
+        : [...state.selectedNodeIds, nodeId],
+      selectedNode: null,
+      selectedEdgeId: null,
+    })),
+  setSelectedEdgeId: (id: string | null) =>
+    set({ selectedEdgeId: id, selectedNode: null, selectedNodeIds: [] }),
+  clearSelection: () => set({ selectedNode: null, selectedNodeIds: [], selectedEdgeId: null }),
 
   setEdgeStyleId: (id: string) => set({ edgeStyleId: id }),
 
@@ -190,8 +218,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   enterEdgeCreationMode: (sourceId: string) =>
     set({ edgeCreationMode: true, edgeCreationSourceId: sourceId }),
 
-  exitEdgeCreationMode: () =>
-    set({ edgeCreationMode: false, edgeCreationSourceId: null }),
+  exitEdgeCreationMode: () => set({ edgeCreationMode: false, edgeCreationSourceId: null }),
 
   loadProject: (project: ProjectFile) => {
     const sheets = project.sheets ?? [];
@@ -238,7 +265,6 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   buildProjectFile: (): ProjectFile => {
     const state = get();
-    const activeSheet = state.sheets.find((s) => s.id === state.activeSheetId) ?? state.sheets[0];
     return {
       version: '1.0.0',
       name: state.projectName,
@@ -256,7 +282,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       nodes: [],
       edges: [],
     };
-    set((state) => ({
+    set(state => ({
       sheets: [...state.sheets, newSheet],
       activeSheetId: newSheet.id,
       nodes: [],
@@ -269,8 +295,8 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   },
 
   removeSheet: (sheetId: string) => {
-    set((state) => {
-      const newSheets = state.sheets.filter((s) => s.id !== sheetId);
+    set(state => {
+      const newSheets = state.sheets.filter(s => s.id !== sheetId);
       if (newSheets.length === 0) {
         // Create a default sheet if all removed
         const defaultSheet: GraphSheet = {
@@ -291,7 +317,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       }
       const wasActive = state.activeSheetId === sheetId;
       const newActiveId = wasActive ? newSheets[0].id : state.activeSheetId;
-      const activeSheet = newSheets.find((s) => s.id === newActiveId);
+      const activeSheet = newSheets.find(s => s.id === newActiveId);
       return {
         sheets: newSheets,
         activeSheetId: newActiveId,
@@ -302,14 +328,14 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       };
     });
     useHistoryStore.getState().clearHistory();
-    const newActive = get().sheets.find((s) => s.id === get().activeSheetId);
+    const newActive = get().sheets.find(s => s.id === get().activeSheetId);
     if (newActive) {
       useHistoryStore.getState().pushHistory(newActive.nodes ?? [], newActive.edges ?? []);
     }
   },
 
   setActiveSheet: (sheetId: string) => {
-    const sheet = get().sheets.find((s) => s.id === sheetId);
+    const sheet = get().sheets.find(s => s.id === sheetId);
     if (sheet) {
       set({
         activeSheetId: sheetId,
@@ -324,21 +350,21 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   },
 
   renameSheet: (sheetId: string, name: string) => {
-    set((state) => ({
-      sheets: state.sheets.map((s) => (s.id === sheetId ? { ...s, name } : s)),
+    set(state => ({
+      sheets: state.sheets.map(s => (s.id === sheetId ? { ...s, name } : s)),
       dirty: true,
     }));
   },
 
   duplicateSheet: (sheetId: string) => {
-    const sheet = get().sheets.find((s) => s.id === sheetId);
+    const sheet = get().sheets.find(s => s.id === sheetId);
     if (!sheet) return '';
-    
+
     const newSheet: GraphSheet = {
       id: `sheet-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name: `${sheet.name} (副本)`,
       type: sheet.type,
-      nodes: sheet.nodes.map((n) => ({
+      nodes: sheet.nodes.map(n => ({
         ...n,
         id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         x: n.x + 20,
@@ -351,10 +377,141 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
         target: typeof e.target === 'string' ? e.target : { ...e.target },
       })),
     };
-    set((state) => ({
+    set(state => ({
       sheets: [...state.sheets, newSheet],
     }));
     return newSheet.id;
+  },
+
+  // Alignment & Distribution
+  alignLeft: () => {
+    const { selectedNodeIds, nodes } = get();
+    if (selectedNodeIds.length < 2) return;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+    const minX = Math.min(...selectedNodes.map(n => n.x));
+    set(state => ({
+      nodes: state.nodes.map(n => (selectedNodeIds.includes(n.id) ? { ...n, x: minX } : n)),
+      dirty: true,
+    }));
+    pushHistoryIfNeeded(get);
+  },
+
+  alignCenter: () => {
+    const { selectedNodeIds, nodes } = get();
+    if (selectedNodeIds.length < 2) return;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+    const centerX =
+      selectedNodes.reduce((sum, n) => sum + n.x + n.width / 2, 0) / selectedNodes.length;
+    set(state => ({
+      nodes: state.nodes.map(n =>
+        selectedNodeIds.includes(n.id) ? { ...n, x: centerX - n.width / 2 } : n
+      ),
+      dirty: true,
+    }));
+    pushHistoryIfNeeded(get);
+  },
+
+  alignRight: () => {
+    const { selectedNodeIds, nodes } = get();
+    if (selectedNodeIds.length < 2) return;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+    const maxRight = Math.max(...selectedNodes.map(n => n.x + n.width));
+    set(state => ({
+      nodes: state.nodes.map(n =>
+        selectedNodeIds.includes(n.id) ? { ...n, x: maxRight - n.width } : n
+      ),
+      dirty: true,
+    }));
+    pushHistoryIfNeeded(get);
+  },
+
+  alignTop: () => {
+    const { selectedNodeIds, nodes } = get();
+    if (selectedNodeIds.length < 2) return;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+    const minY = Math.min(...selectedNodes.map(n => n.y));
+    set(state => ({
+      nodes: state.nodes.map(n => (selectedNodeIds.includes(n.id) ? { ...n, y: minY } : n)),
+      dirty: true,
+    }));
+    pushHistoryIfNeeded(get);
+  },
+
+  alignMiddle: () => {
+    const { selectedNodeIds, nodes } = get();
+    if (selectedNodeIds.length < 2) return;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+    const centerY =
+      selectedNodes.reduce((sum, n) => sum + n.y + n.height / 2, 0) / selectedNodes.length;
+    set(state => ({
+      nodes: state.nodes.map(n =>
+        selectedNodeIds.includes(n.id) ? { ...n, y: centerY - n.height / 2 } : n
+      ),
+      dirty: true,
+    }));
+    pushHistoryIfNeeded(get);
+  },
+
+  alignBottom: () => {
+    const { selectedNodeIds, nodes } = get();
+    if (selectedNodeIds.length < 2) return;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+    const maxBottom = Math.max(...selectedNodes.map(n => n.y + n.height));
+    set(state => ({
+      nodes: state.nodes.map(n =>
+        selectedNodeIds.includes(n.id) ? { ...n, y: maxBottom - n.height } : n
+      ),
+      dirty: true,
+    }));
+    pushHistoryIfNeeded(get);
+  },
+
+  distributeHorizontal: () => {
+    const { selectedNodeIds, nodes } = get();
+    if (selectedNodeIds.length < 3) return;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+    // Sort by center X
+    selectedNodes.sort((a, b) => a.x + a.width / 2 - (b.x + b.width / 2));
+    const leftmost = selectedNodes[0].x;
+    const rightmost =
+      selectedNodes[selectedNodes.length - 1].x + selectedNodes[selectedNodes.length - 1].width;
+    const totalWidth = selectedNodes.reduce((sum, n) => sum + n.width, 0);
+    const spacing = (rightmost - leftmost - totalWidth) / (selectedNodes.length - 1);
+    let currentX = leftmost;
+    set(state => ({
+      nodes: state.nodes.map(n => {
+        if (!selectedNodeIds.includes(n.id)) return n;
+        const newX = currentX;
+        currentX += n.width + spacing;
+        return { ...n, x: newX };
+      }),
+      dirty: true,
+    }));
+    pushHistoryIfNeeded(get);
+  },
+
+  distributeVertical: () => {
+    const { selectedNodeIds, nodes } = get();
+    if (selectedNodeIds.length < 3) return;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+    // Sort by center Y
+    selectedNodes.sort((a, b) => a.y + a.height / 2 - (b.y + b.height / 2));
+    const topmost = selectedNodes[0].y;
+    const bottommost =
+      selectedNodes[selectedNodes.length - 1].y + selectedNodes[selectedNodes.length - 1].height;
+    const totalHeight = selectedNodes.reduce((sum, n) => sum + n.height, 0);
+    const spacing = (bottommost - topmost - totalHeight) / (selectedNodes.length - 1);
+    let currentY = topmost;
+    set(state => ({
+      nodes: state.nodes.map(n => {
+        if (!selectedNodeIds.includes(n.id)) return n;
+        const newY = currentY;
+        currentY += n.height + spacing;
+        return { ...n, y: newY };
+      }),
+      dirty: true,
+    }));
+    pushHistoryIfNeeded(get);
   },
 
   // Undo/Redo

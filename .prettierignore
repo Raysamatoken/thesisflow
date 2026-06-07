@@ -1,0 +1,7 @@
+dist/
+out/
+node_modules/
+*.config.*
+*.d.ts
+package-lock.json
+*.md

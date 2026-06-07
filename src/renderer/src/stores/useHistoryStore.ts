@@ -22,7 +22,7 @@ export const useHistoryStore = create<HistoryState>()((set, get) => ({
   maxHistorySize: MAX_HISTORY,
 
   pushHistory: (nodes, edges) => {
-    set((state) => {
+    set(state => {
       const newPast = [...state.past, { nodes, edges }];
       if (newPast.length > state.maxHistorySize) {
         newPast.shift();
@@ -38,13 +38,17 @@ export const useHistoryStore = create<HistoryState>()((set, get) => ({
     const { past, future } = get();
     if (past.length === 0) return null;
 
-    const previous = past[past.length - 1];
+    const current = past[past.length - 1];
     const newPast = past.slice(0, -1);
+
     set({
       past: newPast,
-      future: [previous, ...future],
+      future: [current, ...future],
     });
-    return previous;
+
+    // Return the previous state (the new last item in past)
+    // If past is now empty, return an empty state
+    return newPast.length > 0 ? newPast[newPast.length - 1] : { nodes: [], edges: [] };
   },
 
   redo: () => {

@@ -21,6 +21,12 @@ export interface ThesisFlowAPI {
   /** 导出为图片（PNG / SVG） */
   exportImage(data: string, format: 'png' | 'svg'): Promise<boolean>;
 
+  // ---- 最近文件 ----
+  /** 获取最近文件列表 */
+  getRecentFiles(): Promise<string[]>;
+  /** 清空最近文件列表 */
+  clearRecentFiles(): Promise<void>;
+
   // ---- 窗口操作 ----
   minimize(): void;
   maximize(): void;
@@ -31,6 +37,10 @@ export interface ThesisFlowAPI {
   onMenuOpenProject(callback: () => void): () => void;
   onMenuSaveProject(callback: () => void): () => void;
   onMenuExportImage(callback: (format: 'png' | 'svg') => void): () => void;
+
+  // ---- 自动保存 ----
+  /** 监听自动保存触发事件 */
+  onAutoSave(callback: () => void): () => void;
 }
 
 declare global {
