@@ -8,6 +8,7 @@ import {
   Typography,
   Divider,
   Button,
+  Select,
   Popconfirm,
 } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
@@ -120,6 +121,33 @@ const PropertyPanel: React.FC = () => {
             <Input
               placeholder="如 是 / 否"
               onChange={e => handleFieldChange('label', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="连线颜色" name="color">
+            <ColorPicker
+              format="hex"
+              showText
+              onChange={(_, hex) => handleFieldChange('color', hex)}
+            />
+          </Form.Item>
+          <Form.Item label="线型" name="strokeDasharray">
+            <Select
+              defaultValue=""
+              onChange={val => handleFieldChange('strokeDasharray', val)}
+              options={[
+                { label: '实线', value: '' },
+                { label: '虚线', value: '5,5' },
+                { label: '点线', value: '2,2' },
+                { label: '点划线', value: '10,5,2,5' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item label="线宽" name="strokeWidth">
+            <InputNumber
+              min={1}
+              max={5}
+              style={{ width: '100%' }}
+              onChange={val => handleFieldChange('strokeWidth', val ?? 1.5)}
             />
           </Form.Item>
           <Form.Item label="备注" name="remark">

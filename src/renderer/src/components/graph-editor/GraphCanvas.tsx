@@ -64,6 +64,7 @@ const GraphCanvas: React.FC = () => {
   const removeNode = useGraphStore(s => s.removeNode);
   const removeEdge = useGraphStore(s => s.removeEdge);
   const addEdge = useGraphStore(s => s.addEdge);
+  const updateEdge = useGraphStore(s => s.updateEdge);
 
   // Context menu handlers
   const handleNodeContextMenu = ({ node, e }: { node: any; e: any }) => {
@@ -358,6 +359,31 @@ const GraphCanvas: React.FC = () => {
       const currentVersion = ++syncVersion.current;
       setSelectedEdgeId(edge.id);
       if (currentVersion !== syncVersion.current) return;
+    });
+
+    // Edge double-click for inline label editing
+    graph.on('edge:dblclick', ({ edge }) => {
+      const currentLabels = edge.getLabels();
+      const currentLabel = currentLabels.length > 0 ? (currentLabels[0] as any).attrs?.label?.text ?? '' : '';
+      const newLabel = prompt('输入连线标签:', typeof currentLabel === 'string' ? currentLabel : '');
+      if (newLabel !== null) {
+        updateEdge(edge.id, { label: newLabel });
+        edge.setLabels([{ attrs: { label: { text: newLabel } } }]);
+      }
+    });
+
+    // Restore zoom from localStorage
+    const savedZoom = localStorage.getItem('thesisflow-zoom');
+    if (savedZoom) {
+      const zoom = parseFloat(savedZoom);
+      if (!isNaN(zoom) && zoom >= 0.25 && zoom <= 3) {
+        graph.zoom(zoom);
+      }
+    }
+
+    // Save zoom on change
+    graph.on('scale', ({ sx }: { sx: number }) => {
+      localStorage.setItem('thesisflow-zoom', String(sx));
     });
 
     graph.on('node:removed', ({ node }) => {

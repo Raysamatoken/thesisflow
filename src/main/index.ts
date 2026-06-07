@@ -204,6 +204,29 @@ function registerIpcHandlers(): void {
     await saveRecentFiles([]);
   });
 
+  // Export PDF
+  ipcMain.handle(
+    'export-pdf',
+    async (_event, svgData: string, projectName: string): Promise<boolean> => {
+      if (!mainWindow) return false;
+      try {
+        const result = await dialog.showSaveDialog(mainWindow, {
+          title: '导出 PDF',
+          filters: [{ name: 'PDF 文件', extensions: ['pdf'] }],
+          defaultPath: `${projectName || 'export'}.pdf`,
+        });
+        if (result.canceled || !result.filePath) return false;
+        // PDF export is handled in renderer using jspdf
+        // This handler just provides the save dialog
+        return true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        dialog.showErrorBox('导出失败', msg);
+        return false;
+      }
+    }
+  );
+
   // Auto-save trigger from main process
   ipcMain.on('auto-save-trigger', () => {
     if (mainWindow) {

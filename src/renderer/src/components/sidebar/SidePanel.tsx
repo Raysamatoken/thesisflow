@@ -5,6 +5,7 @@ import type { Graph } from '@antv/x6';
 import { useGraphStore, EDGE_PRESETS } from '../../stores/useGraphStore';
 import type { AnyNode, ModuleNodeShape } from '../../types';
 import { FlowNodeShape } from '../../types';
+import TemplatePanel from '../template-panel/TemplatePanel';
 
 interface NodeTemplate {
   shape: string;
@@ -329,6 +330,11 @@ const SidePanel: React.FC = () => {
       </div>
     </div>
   );
+};
+
+// Template panel section (shown in sidebar)
+export const SidePanelTemplates: React.FC = () => {
+  return <TemplatePanel />;
 };
 
 export default SidePanel;

@@ -1,0 +1,129 @@
+/* Dark Theme Variables */
+[data-theme='dark'] {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
+  --bg-canvas: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-hover: #0f3460;
+
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #606060;
+
+  --border-primary: #2a2a4a;
+  --border-secondary: #3a3a5a;
+
+  --accent-primary: #4a9eff;
+  --accent-secondary: #6c5ce7;
+  --accent-success: #00b894;
+  --accent-warning: #fdcb6e;
+  --accent-danger: #e17055;
+
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Light Theme Variables (default) */
+[data-theme='light'] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #e8e8e8;
+  --bg-canvas: #fafafa;
+  --bg-card: #ffffff;
+  --bg-hover: #f0f0f0;
+
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+
+  --border-primary: #e8e8e8;
+  --border-secondary: #d0d0d0;
+
+  --accent-primary: #1890ff;
+  --accent-secondary: #722ed1;
+  --accent-success: #52c41a;
+  --accent-warning: #faad14;
+  --accent-danger: #ff4d4f;
+
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* High Contrast Theme */
+[data-theme='high-contrast'] {
+  --bg-primary: #000000;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #333333;
+  --bg-canvas: #000000;
+  --bg-card: #1a1a1a;
+  --bg-hover: #333333;
+
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-tertiary: #999999;
+
+  --border-primary: #666666;
+  --border-secondary: #444444;
+
+  --accent-primary: #00ffff;
+  --accent-secondary: #ff00ff;
+  --accent-success: #00ff00;
+  --accent-warning: #ffff00;
+  --accent-danger: #ff0000;
+
+  --shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+  --shadow-lg: 0 4px 16px rgba(255, 255, 255, 0.2);
+}
+
+/* Apply theme to body */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Apply theme to common components */
+.ant-layout {
+  background: var(--bg-primary) !important;
+}
+
+.ant-layout-sider {
+  background: var(--bg-card) !important;
+  border-color: var(--border-primary) !important;
+}
+
+.ant-btn {
+  border-color: var(--border-primary) !important;
+}
+
+.ant-input {
+  background: var(--bg-card) !important;
+  border-color: var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Theme selector component */
+.theme-selector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.theme-selector button {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--border-primary);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.theme-selector button:hover {
+  transform: scale(1.2);
+}
+
+.theme-selector button.active {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary);
+}
