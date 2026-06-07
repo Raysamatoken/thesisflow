@@ -206,7 +206,7 @@ function registerIpcHandlers(): void {
   // Export PDF
   ipcMain.handle(
     'export-pdf',
-    async (_event, svgData: string, projectName: string): Promise<boolean> => {
+    async (_event, pdfData: string, projectName: string): Promise<boolean> => {
       if (!mainWindow) return false;
       try {
         const result = await dialog.showSaveDialog(mainWindow, {
@@ -215,13 +215,32 @@ function registerIpcHandlers(): void {
           defaultPath: `${projectName || 'export'}.pdf`,
         });
         if (result.canceled || !result.filePath) return false;
-        // PDF export is handled in renderer using jspdf
-        // This handler just provides the save dialog
+        // pdfData is a data URI like "data:application/pdf;base64,..."
+        const base64 = pdfData.replace(/^data:application\/pdf;base64,/, '');
+        await fs.writeFile(result.filePath, Buffer.from(base64, 'base64'));
         return true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         dialog.showErrorBox('导出失败', msg);
         return false;
+      }
+    }
+  );
+
+  // Open file by absolute path (for recent files)
+  ipcMain.handle(
+    'open-file-by-path',
+    async (_event, filePath: string): Promise<{ project: ProjectFile; filePath: string } | null> => {
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        const parsed = JSON.parse(content) as ProjectFile;
+        if (!parsed.version || !Array.isArray(parsed.sheets)) {
+          return null;
+        }
+        await addRecentFile(filePath);
+        return { project: parsed, filePath };
+      } catch {
+        return null;
       }
     }
   );

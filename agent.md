@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-ThesisFlow is an Electron desktop app for generating academic flowcharts and module diagrams. Users drag nodes from a sidebar onto an X6-powered canvas, connect them, style properties, auto-layout with Dagre, and export high-res PNG/SVG for thesis papers.
+ThesisFlow is an Electron desktop app for generating academic flowcharts and module diagrams. Users drag nodes from a sidebar onto an X6-powered canvas, connect them, style properties, auto-layout with Dagre, and export high-res PNG/SVG/PDF for thesis papers.
 
 ## Tech Stack
 
@@ -12,6 +12,7 @@ ThesisFlow is an Electron desktop app for generating academic flowcharts and mod
 - **Layout**: `@antv/layout` (Dagre algorithm)
 - **State**: Zustand 5 (dual stores: `useGraphStore.ts` + `useHistoryStore.ts`)
 - **UI**: Ant Design 5
+- **PDF Export**: jspdf + svg2pdf.js
 - **Packaging**: electron-builder (Windows portable)
 - **Testing**: Vitest + @testing-library/react
 - **Linting**: ESLint 10 (flat config) + Prettier + Husky
@@ -21,8 +22,8 @@ ThesisFlow is an Electron desktop app for generating academic flowcharts and mod
 ```
 thesisflow/
 ├── src/
-│   ├── main/index.ts                    # Electron main process: window, IPC, auto-save, recent files
-│   ├── preload/index.ts                 # contextBridge exposes window.thesisFlow API
+│   ├── main/index.ts                    # Electron main process: window, IPC, auto-save, recent files, PDF save
+│   ├── preload/index.ts                 # contextBridge exposes window.thesisFlow API (incl. exportPdf, openFileByPath)
 │   ├── shared/
 │   │   ├── types.ts                     # FlowNode, ModuleNode, GraphEdge, ProjectFile, enums, type guards
 │   │   └── ipc.ts                       # ThesisFlowAPI interface + Window.thesisFlow declaration
@@ -33,21 +34,32 @@ thesisflow/
 │           ├── App.tsx                  # Layout: ToolBar + SheetTabs + 3-column + AlignmentToolbar
 │           ├── registerNodes.ts         # X6 custom node shapes (6 types, academic B&W style)
 │           ├── components/
-│           │   ├── graph-editor/GraphCanvas.tsx    # X6 init, events, store sync, context menu, search
+│           │   ├── graph-editor/
+│           │   │   ├── GraphCanvas.tsx   # X6 init, events, store sync, context menu (uses sub-components)
+│           │   │   ├── SearchPanel.tsx   # Global search overlay (Ctrl+F), arrow-key navigation
+│           │   │   └── EdgeLabelEditor.tsx # Edge label edit modal (triggered via CustomEvent)
 │           │   ├── sidebar/SidePanel.tsx           # Draggable node palette + edge style picker + search
-│           │   ├── toolbar/ToolBar.tsx             # Full toolbar: file ops, undo/redo, copy/paste, zoom, recent
+│           │   ├── toolbar/ToolBar.tsx             # Full toolbar: file ops, undo/redo, copy/paste, zoom, PDF export, recent files
 │           │   ├── property-panel/PropertyPanel.tsx # Node/edge property editing form
 │           │   ├── sheet-tabs/SheetTabs.tsx        # Multi-sheet tab management with context menu
 │           │   └── alignment-toolbar/AlignmentToolbar.tsx # Node alignment/distribution tools
 │           ├── stores/
-│           │   ├── useGraphStore.ts     # Zustand store (nodes, edges, selection, sheets, alignment)
+│           │   ├── useGraphStore.ts     # Zustand store (nodes, edges, selection, sheets, alignment) — sheets kept in sync
 │           │   ├── useHistoryStore.ts   # Undo/redo history management
-│           │   └── __tests__/           # Unit tests for stores
-│           ├── types/index.ts           # Re-exports shared types + renderer-only helpers
+│           │   └── __tests__/           # Unit tests for stores (45 tests across 3 files)
+│           ├── types/
+│           │   ├── index.ts             # Re-exports shared types + renderer-only helpers
+│           │   └── x6-events.ts         # Typed X6 event interfaces (X6NodeEvent, X6EdgeEvent, etc.)
 │           ├── utils/
 │           │   ├── autoLayout.ts        # Dagre layout wrapper
-│           │   └── getGraph.ts          # Get X6 Graph instance from DOM
-│           └── styles/global.css        # Reset, scrollbar, fonts
+│           │   ├── getGraph.ts          # Get X6 Graph instance from DOM
+│           │   ├── common.ts            # Shared helpers (endpointId)
+│           │   ├── exportPdf.ts         # SVG → PDF export via jspdf + svg2pdf.js
+│           │   └── __tests__/
+│           │       └── common.test.ts   # Tests for shared utilities
+│           └── styles/
+│               ├── global.css           # Reset, scrollbar, fonts
+│               └── themes.css           # Light/dark theme tokens
 ├── src/test/setup.ts                    # Test environment setup (mocks for Electron APIs)
 ├── vitest.config.ts                     # Vitest configuration
 ├── eslint.config.mjs                    # ESLint flat config (separate node/browser rules)
@@ -130,6 +142,8 @@ Key actions:
 - **History**: `undo`, `redo`, `canUndo`, `canRedo`
 - **Project**: `loadProject`, `buildProjectFile`, `clearGraph`, `loadGraph`
 
+**Sheets sync invariant**: Every mutation to `nodes`/`edges` (addNode, removeNode, updateNode, addEdge, removeEdge, updateEdge, alignment, distribution) also updates the `sheets` array for the `activeSheetId`. `setActiveSheet` saves the current sheet before switching. `buildProjectFile` merges current state into the sheets before serializing.
+
 ### useHistoryStore (History Store)
 
 Manages undo/redo history with `past` and `future` arrays. Each entry contains `{ nodes, edges }`.
@@ -176,14 +190,24 @@ Edge presets (`EDGE_PRESETS`):
 ## Context Menus
 
 - **Node context menu**: Right-click on node → Copy, Delete
-- **Edge context menu**: Right-click on edge → Copy, Delete
+- **Edge context menu**: Right-click on edge → Copy, Edit Label, Delete
 - **Canvas context menu**: Right-click on blank area → Paste (placeholder)
 - **Sheet tab context menu**: Right-click on tab → Rename, Duplicate, New Flow/Module, Delete
 
 ## Search System
 
 - **Sidebar search**: Input box at top of SidePanel filters node templates by label
-- **Canvas search** (Ctrl+F): Modal overlay searches all nodes by label/remark, arrow keys navigate, Enter selects and centers
+- **Canvas search** (Ctrl+F): `SearchPanel` component renders a floating overlay. Searches all nodes by label/remark, arrow keys navigate, Enter selects and centers node on canvas.
+
+## Edge Label Editing
+
+- **Double-click edge** or **right-click → Edit Label**: Dispatches `thesisflow:edit-edge-label` CustomEvent. `EdgeLabelEditor` component opens a modal, updates store via `updateEdge()` and syncs X6 labels directly.
+
+## Export System
+
+- **PNG**: X6 `exportPNG()` with 2x ratio, sent to main process via `export-image` IPC
+- **SVG**: X6 `exportSVG()`, sent to main process via `export-image` IPC
+- **PDF**: `exportPdf()` in `utils/exportPdf.ts` uses jspdf + svg2pdf.js to embed the SVG into a PDF document, then sends base64 data to main process via `export-pdf` IPC for file saving
 
 ## Keyboard Shortcuts
 
@@ -203,10 +227,12 @@ Edge presets (`EDGE_PRESETS`):
 | Ctrl+0 | Zoom to fit |
 | Ctrl+9 | Zoom 100% |
 
+**Implementation note**: Keyboard handlers in `ToolBar.tsx` call `useGraphStore.getState()` directly (not via stale closures from `useEffect` dependencies) to ensure they always read the latest store state. Clipboard state is tracked via `useRef` for the same reason.
+
 ## Auto-Save & Recent Files
 
 - **Auto-save**: Main process sends `auto-save-trigger` event every 30 seconds. Renderer saves if `dirty` and `currentFilePath` exists.
-- **Recent files**: Stored in `userData/recent-files.json`. Max 10 entries. Exposed via `getRecentFiles()` and `clearRecentFiles()` IPC.
+- **Recent files**: Stored in `userData/recent-files.json`. Max 10 entries. Exposed via `getRecentFiles()`, `clearRecentFiles()`, and `openFileByPath(filePath)` IPC.
 
 ## Alignment System
 
@@ -214,7 +240,9 @@ When 2+ nodes are selected (via Shift+click or rubberband), AlignmentToolbar app
 - **Alignment** (2+ nodes): Left, Center, Right, Top, Middle, Bottom
 - **Distribution** (3+ nodes): Horizontal, Vertical
 
-All alignment operations push to history for undo support.
+All alignment operations sync to sheets and push to history for undo support.
+
+**Distribution algorithm**: Sorts selected nodes by center coordinate, computes evenly-spaced positions using a `posMap` (Map of id → position), then applies in a single pass. This avoids the stale-closure bug where closure-captured counters diverged from the actual `state.nodes.map` traversal order.
 
 ## Known Gotchas
 
@@ -223,7 +251,7 @@ All alignment operations push to history for undo support.
 3. **SVG line elements**: Don't support `100%` or `calc()`. Use fixed pixel values (e.g., x1=12, y1=2, x2=12, y2=58 for subprocess node stripes).
 4. **Node resize**: Uses `@antv/x6-plugin-transform`. The plugin must be registered via `graph.use(new Transform({...}))`.
 5. **Git permissions**: `.git/` directory sometimes requires escalated permissions on Windows.
-6. **X6 type assertions**: Many X6 API calls require `as any` or `as unknown as Type` casts due to incomplete type definitions.
+6. **X6 type assertions**: X6 event types are defined in `types/x6-events.ts`. Remaining `as any` casts are limited to X6 API calls with incomplete type definitions (e.g., `exportPNG`, `exportSVG`).
 
 ## IPC Channels
 
@@ -233,8 +261,10 @@ All alignment operations push to history for undo support.
 | `open-project` | renderer -> main -> renderer | Opens .thesisflow file, returns ProjectFile |
 | `save-project` | renderer -> main -> renderer | Saves ProjectFile, optional filePath param |
 | `export-image` | renderer -> main -> renderer | Saves PNG/SVG data to disk |
+| `export-pdf` | renderer -> main -> renderer | Saves PDF (base64 data URI) to disk |
 | `get-recent-files` | renderer -> main -> renderer | Returns string[] of recent file paths |
 | `clear-recent-files` | renderer -> main -> renderer | Clears recent files list |
+| `open-file-by-path` | renderer -> main -> renderer | Opens .thesisflow by absolute path (for recent files) |
 | `auto-save-trigger` | main -> renderer | Notifies renderer to auto-save |
 | `window:minimize/maximize/close` | renderer -> main | Window controls (send, not invoke) |
 
@@ -250,7 +280,7 @@ Supports multiple sheets (tabs) per project.
 
 ## Testing
 
-Tests are in `src/renderer/src/stores/__tests__/` and use Vitest with jsdom environment.
+Tests are in `src/renderer/src/stores/__tests__/` and `src/renderer/src/utils/__tests__/`, using Vitest with jsdom environment.
 
 ```bash
 npm run test         # Run all tests
@@ -258,4 +288,4 @@ npm run test:watch   # Watch mode
 npm run test:ui      # UI mode
 ```
 
-Current test coverage: useHistoryStore (10 tests), useGraphStore (24 tests).
+Current test coverage: useHistoryStore (10 tests), useGraphStore (34 tests), useTemplateStore (11 tests), common utils (2 tests). Total: 55 tests across 4 files.

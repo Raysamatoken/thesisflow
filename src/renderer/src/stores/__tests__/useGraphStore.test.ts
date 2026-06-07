@@ -294,6 +294,123 @@ describe('useGraphStore', () => {
       expect(project.sheets).toHaveLength(1);
       expect(useGraphStore.getState().nodes).toHaveLength(1);
     });
+
+    it('should include current nodes in active sheet', () => {
+      useGraphStore.getState().addSheet('Sheet 1');
+      useGraphStore.getState().addNode(createMockNode('1'));
+      useGraphStore.getState().addNode(createMockNode('2'));
+
+      const project = useGraphStore.getState().buildProjectFile();
+      expect(project.sheets[0].nodes).toHaveLength(2);
+    });
+  });
+
+  describe('sheets sync', () => {
+    it('should sync nodes to active sheet when addNode is called', () => {
+      const sheetId = useGraphStore.getState().addSheet('Sheet 1');
+      useGraphStore.getState().addNode(createMockNode('1'));
+
+      const sheet = useGraphStore.getState().sheets.find(s => s.id === sheetId);
+      expect(sheet?.nodes).toHaveLength(1);
+    });
+
+    it('should sync edges to active sheet when addEdge is called', () => {
+      const sheetId = useGraphStore.getState().addSheet('Sheet 1');
+      useGraphStore.getState().addNode(createMockNode('1'));
+      useGraphStore.getState().addNode(createMockNode('2'));
+      useGraphStore.getState().addEdge(createMockEdge('e1', '1', '2'));
+
+      const sheet = useGraphStore.getState().sheets.find(s => s.id === sheetId);
+      expect(sheet?.edges).toHaveLength(1);
+    });
+
+    it('should save current sheet data before switching sheets', () => {
+      const id1 = useGraphStore.getState().addSheet('Sheet 1');
+      useGraphStore.getState().addNode(createMockNode('1'));
+      const id2 = useGraphStore.getState().addSheet('Sheet 2');
+      useGraphStore.getState().addNode(createMockNode('2'));
+
+      // Switch back to sheet 1
+      useGraphStore.getState().setActiveSheet(id1);
+      expect(useGraphStore.getState().nodes).toHaveLength(1);
+      expect(useGraphStore.getState().nodes[0].id).toBe('1');
+
+      // Switch to sheet 2
+      useGraphStore.getState().setActiveSheet(id2);
+      expect(useGraphStore.getState().nodes).toHaveLength(1);
+      expect(useGraphStore.getState().nodes[0].id).toBe('2');
+    });
+  });
+
+  describe('duplicateSheet', () => {
+    it('should remap edge source and target to new node ids', () => {
+      const sheetId = useGraphStore.getState().addSheet('Sheet 1');
+      useGraphStore.getState().addNode(createMockNode('n1', 0, 0));
+      useGraphStore.getState().addNode(createMockNode('n2', 100, 0));
+      useGraphStore.getState().addEdge(createMockEdge('e1', 'n1', 'n2'));
+
+      const newSheetId = useGraphStore.getState().duplicateSheet(sheetId);
+      const newSheet = useGraphStore.getState().sheets.find(s => s.id === newSheetId);
+
+      expect(newSheet).toBeDefined();
+      expect(newSheet!.nodes).toHaveLength(2);
+      expect(newSheet!.edges).toHaveLength(1);
+
+      const newNodeIds = new Set(newSheet!.nodes.map(n => n.id));
+      const edge = newSheet!.edges[0];
+      const src = typeof edge.source === 'string' ? edge.source : edge.source.cell;
+      const tgt = typeof edge.target === 'string' ? edge.target : edge.target.cell;
+      expect(newNodeIds.has(src)).toBe(true);
+      expect(newNodeIds.has(tgt)).toBe(true);
+      // Ensure they're different from original IDs
+      expect(src).not.toBe('n1');
+      expect(tgt).not.toBe('n2');
+    });
+  });
+
+  describe('distribution', () => {
+    it('should distribute nodes horizontally', () => {
+      useGraphStore.getState().addNode(createMockNode('1', 0, 0));
+      useGraphStore.getState().addNode(createMockNode('2', 100, 0));
+      useGraphStore.getState().addNode(createMockNode('3', 500, 0));
+      useGraphStore.getState().setSelectedNodeIds(['1', '2', '3']);
+      useGraphStore.getState().distributeHorizontal();
+
+      const nodes = useGraphStore.getState().nodes;
+      const xs = nodes.map(n => n.x).sort((a, b) => a - b);
+      // Should be evenly distributed between 0 and 500+140=640
+      expect(xs[0]).toBe(0);
+      expect(xs[2]).toBe(500);
+      // Middle node should be between first and last
+      expect(xs[1]).toBeGreaterThan(xs[0]);
+      expect(xs[1]).toBeLessThan(xs[2]);
+    });
+
+    it('should distribute nodes vertically', () => {
+      useGraphStore.getState().addNode(createMockNode('1', 0, 0));
+      useGraphStore.getState().addNode(createMockNode('2', 0, 100));
+      useGraphStore.getState().addNode(createMockNode('3', 0, 500));
+      useGraphStore.getState().setSelectedNodeIds(['1', '2', '3']);
+      useGraphStore.getState().distributeVertical();
+
+      const nodes = useGraphStore.getState().nodes;
+      const ys = nodes.map(n => n.y).sort((a, b) => a - b);
+      expect(ys[0]).toBe(0);
+      expect(ys[2]).toBe(500);
+      expect(ys[1]).toBeGreaterThan(ys[0]);
+      expect(ys[1]).toBeLessThan(ys[2]);
+    });
+
+    it('should not distribute with less than 3 nodes', () => {
+      useGraphStore.getState().addNode(createMockNode('1', 0, 0));
+      useGraphStore.getState().addNode(createMockNode('2', 100, 0));
+      useGraphStore.getState().setSelectedNodeIds(['1', '2']);
+      useGraphStore.getState().distributeHorizontal();
+
+      const nodes = useGraphStore.getState().nodes;
+      expect(nodes[0].x).toBe(0);
+      expect(nodes[1].x).toBe(100);
+    });
   });
 
   describe('clearGraph', () => {

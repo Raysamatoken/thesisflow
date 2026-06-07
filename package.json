@@ -30,8 +30,10 @@
     "@antv/x6-plugin-export": "^2.1.0",
     "@antv/x6-plugin-transform": "^2.1.8",
     "antd": "^5.22.0",
+    "jspdf": "^4.2.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "svg2pdf.js": "^2.7.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {

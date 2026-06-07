@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { GraphType } from '../types';
 import type { AnyNode, GraphEdge, ProjectFile, GraphSheet } from '../types';
 import { useHistoryStore } from './useHistoryStore';
+import { endpointId } from '../utils/common';
 
 /** 连线样式预设 */
 export interface EdgeStylePreset {
@@ -114,10 +115,6 @@ export interface GraphState {
   canRedo: () => boolean;
 }
 
-function endpointId(ep: GraphEdge['source']): string {
-  return typeof ep === 'string' ? ep : ep.cell;
-}
-
 function pushHistoryIfNeeded(getState: () => GraphState) {
   const { _restoringFromHistory, nodes, edges } = getState();
   if (!_restoringFromHistory) {
@@ -142,19 +139,35 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   _restoringFromHistory: false,
 
   addNode: (node: AnyNode) => {
-    set((state: GraphState) => ({ nodes: [...state.nodes, node], dirty: true }));
+    set((state: GraphState) => {
+      const nodes = [...state.nodes, node];
+      return {
+        nodes,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
   removeNode: (nodeId: string) => {
-    set((state: GraphState) => ({
-      nodes: state.nodes.filter((n: AnyNode) => n.id !== nodeId),
-      edges: state.edges.filter(
+    set((state: GraphState) => {
+      const nodes = state.nodes.filter((n: AnyNode) => n.id !== nodeId);
+      const edges = state.edges.filter(
         (e: GraphEdge) => endpointId(e.source) !== nodeId && endpointId(e.target) !== nodeId
-      ),
-      selectedNode: state.selectedNode?.id === nodeId ? null : state.selectedNode,
-      dirty: true,
-    }));
+      );
+      return {
+        nodes,
+        edges,
+        selectedNode: state.selectedNode?.id === nodeId ? null : state.selectedNode,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes, edges } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -162,38 +175,67 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     nodeId: string,
     patch: Partial<Pick<AnyNode, 'x' | 'y' | 'width' | 'height' | 'label' | 'data'>>
   ) => {
-    set((state: GraphState) => ({
-      nodes: state.nodes.map((n: AnyNode) =>
+    set((state: GraphState) => {
+      const nodes = state.nodes.map((n: AnyNode) =>
         n.id === nodeId ? ({ ...n, ...patch } as AnyNode) : n
-      ),
-      selectedNode:
-        state.selectedNode?.id === nodeId
-          ? ({ ...state.selectedNode, ...patch } as AnyNode)
-          : state.selectedNode,
-      dirty: true,
-    }));
+      );
+      return {
+        nodes,
+        selectedNode:
+          state.selectedNode?.id === nodeId
+            ? ({ ...state.selectedNode, ...patch } as AnyNode)
+            : state.selectedNode,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
   addEdge: (edge: GraphEdge) => {
-    set((state: GraphState) => ({ edges: [...state.edges, edge], dirty: true }));
+    set((state: GraphState) => {
+      const edges = [...state.edges, edge];
+      return {
+        edges,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, edges } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
   removeEdge: (edgeId: string) => {
-    set((state: GraphState) => ({
-      edges: state.edges.filter((e: GraphEdge) => e.id !== edgeId),
-      selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
-      dirty: true,
-    }));
+    set((state: GraphState) => {
+      const edges = state.edges.filter((e: GraphEdge) => e.id !== edgeId);
+      return {
+        edges,
+        selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, edges } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
   updateEdge: (edgeId: string, patch: Partial<GraphEdge>) => {
-    set((state: GraphState) => ({
-      edges: state.edges.map((e: GraphEdge) => (e.id === edgeId ? { ...e, ...patch } : e)),
-      dirty: true,
-    }));
+    set((state: GraphState) => {
+      const edges = state.edges.map((e: GraphEdge) =>
+        e.id === edgeId ? { ...e, ...patch } : e
+      );
+      return {
+        edges,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, edges } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -266,15 +308,27 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     }),
 
   loadGraph: (nodes: AnyNode[], edges: GraphEdge[]) =>
-    set({ nodes, edges, selectedNode: null, selectedEdgeId: null, dirty: true }),
+    set((state: GraphState) => ({
+      nodes,
+      edges,
+      selectedNode: null,
+      selectedEdgeId: null,
+      dirty: true,
+      sheets: state.sheets.map(s =>
+        s.id === state.activeSheetId ? { ...s, nodes, edges } : s
+      ),
+    })),
 
   buildProjectFile: (): ProjectFile => {
     const state = get();
+    const sheets = state.sheets.map(s =>
+      s.id === state.activeSheetId ? { ...s, nodes: state.nodes, edges: state.edges } : s
+    );
     return {
       version: '1.0.0',
       name: state.projectName,
       updatedAt: new Date().toISOString(),
-      sheets: state.sheets,
+      sheets,
     };
   },
 
@@ -340,18 +394,24 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   },
 
   setActiveSheet: (sheetId: string) => {
-    const sheet = get().sheets.find(s => s.id === sheetId);
-    if (sheet) {
-      set({
-        activeSheetId: sheetId,
-        nodes: sheet.nodes,
-        edges: sheet.edges,
-        selectedNode: null,
-        selectedEdgeId: null,
-      });
-      useHistoryStore.getState().clearHistory();
-      useHistoryStore.getState().pushHistory(sheet.nodes ?? [], sheet.edges ?? []);
-    }
+    const state = get();
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    // Save current sheet's data before switching
+    const updatedSheets = state.sheets.map(s =>
+      s.id === state.activeSheetId ? { ...s, nodes: state.nodes, edges: state.edges } : s
+    );
+    const targetSheet = updatedSheets.find(s => s.id === sheetId)!;
+    set({
+      sheets: updatedSheets,
+      activeSheetId: sheetId,
+      nodes: targetSheet.nodes,
+      edges: targetSheet.edges,
+      selectedNode: null,
+      selectedEdgeId: null,
+    });
+    useHistoryStore.getState().clearHistory();
+    useHistoryStore.getState().pushHistory(targetSheet.nodes ?? [], targetSheet.edges ?? []);
   },
 
   renameSheet: (sheetId: string, name: string) => {
@@ -365,22 +425,32 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const sheet = get().sheets.find(s => s.id === sheetId);
     if (!sheet) return '';
 
+    const nodeIdMap = new Map<string, string>();
+    const newNodes = sheet.nodes.map(n => {
+      const newId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      nodeIdMap.set(n.id, newId);
+      return { ...n, id: newId, x: n.x + 20, y: n.y + 20 };
+    });
+
+    const newEdges = sheet.edges.map((e, i) => ({
+      ...e,
+      id: `edge-${Date.now()}-${i}`,
+      source:
+        typeof e.source === 'string'
+          ? (nodeIdMap.get(e.source) ?? e.source)
+          : { ...e.source, cell: nodeIdMap.get(e.source.cell) ?? e.source.cell },
+      target:
+        typeof e.target === 'string'
+          ? (nodeIdMap.get(e.target) ?? e.target)
+          : { ...e.target, cell: nodeIdMap.get(e.target.cell) ?? e.target.cell },
+    }));
+
     const newSheet: GraphSheet = {
       id: `sheet-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name: `${sheet.name} (副本)`,
       type: sheet.type,
-      nodes: sheet.nodes.map(n => ({
-        ...n,
-        id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        x: n.x + 20,
-        y: n.y + 20,
-      })),
-      edges: sheet.edges.map((e, i) => ({
-        ...e,
-        id: `edge-${Date.now()}-${i}`,
-        source: typeof e.source === 'string' ? e.source : { ...e.source },
-        target: typeof e.target === 'string' ? e.target : { ...e.target },
-      })),
+      nodes: newNodes,
+      edges: newEdges,
     };
     set(state => ({
       sheets: [...state.sheets, newSheet],
@@ -394,10 +464,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     if (selectedNodeIds.length < 2) return;
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
     const minX = Math.min(...selectedNodes.map(n => n.x));
-    set(state => ({
-      nodes: state.nodes.map(n => (selectedNodeIds.includes(n.id) ? { ...n, x: minX } : n)),
-      dirty: true,
-    }));
+    set(state => {
+      const updated = state.nodes.map(n =>
+        selectedNodeIds.includes(n.id) ? { ...n, x: minX } : n
+      );
+      return {
+        nodes: updated,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: updated } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -407,12 +485,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
     const centerX =
       selectedNodes.reduce((sum, n) => sum + n.x + n.width / 2, 0) / selectedNodes.length;
-    set(state => ({
-      nodes: state.nodes.map(n =>
+    set(state => {
+      const updated = state.nodes.map(n =>
         selectedNodeIds.includes(n.id) ? { ...n, x: centerX - n.width / 2 } : n
-      ),
-      dirty: true,
-    }));
+      );
+      return {
+        nodes: updated,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: updated } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -421,12 +505,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     if (selectedNodeIds.length < 2) return;
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
     const maxRight = Math.max(...selectedNodes.map(n => n.x + n.width));
-    set(state => ({
-      nodes: state.nodes.map(n =>
+    set(state => {
+      const updated = state.nodes.map(n =>
         selectedNodeIds.includes(n.id) ? { ...n, x: maxRight - n.width } : n
-      ),
-      dirty: true,
-    }));
+      );
+      return {
+        nodes: updated,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: updated } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -435,10 +525,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     if (selectedNodeIds.length < 2) return;
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
     const minY = Math.min(...selectedNodes.map(n => n.y));
-    set(state => ({
-      nodes: state.nodes.map(n => (selectedNodeIds.includes(n.id) ? { ...n, y: minY } : n)),
-      dirty: true,
-    }));
+    set(state => {
+      const updated = state.nodes.map(n =>
+        selectedNodeIds.includes(n.id) ? { ...n, y: minY } : n
+      );
+      return {
+        nodes: updated,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: updated } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -448,12 +546,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
     const centerY =
       selectedNodes.reduce((sum, n) => sum + n.y + n.height / 2, 0) / selectedNodes.length;
-    set(state => ({
-      nodes: state.nodes.map(n =>
+    set(state => {
+      const updated = state.nodes.map(n =>
         selectedNodeIds.includes(n.id) ? { ...n, y: centerY - n.height / 2 } : n
-      ),
-      dirty: true,
-    }));
+      );
+      return {
+        nodes: updated,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: updated } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -462,12 +566,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     if (selectedNodeIds.length < 2) return;
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
     const maxBottom = Math.max(...selectedNodes.map(n => n.y + n.height));
-    set(state => ({
-      nodes: state.nodes.map(n =>
+    set(state => {
+      const updated = state.nodes.map(n =>
         selectedNodeIds.includes(n.id) ? { ...n, y: maxBottom - n.height } : n
-      ),
-      dirty: true,
-    }));
+      );
+      return {
+        nodes: updated,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: updated } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -475,23 +585,31 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const { selectedNodeIds, nodes } = get();
     if (selectedNodeIds.length < 3) return;
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
-    // Sort by center X
-    selectedNodes.sort((a, b) => a.x + a.width / 2 - (b.x + b.width / 2));
-    const leftmost = selectedNodes[0].x;
-    const rightmost =
-      selectedNodes[selectedNodes.length - 1].x + selectedNodes[selectedNodes.length - 1].width;
-    const totalWidth = selectedNodes.reduce((sum, n) => sum + n.width, 0);
-    const spacing = (rightmost - leftmost - totalWidth) / (selectedNodes.length - 1);
+    const sorted = [...selectedNodes].sort(
+      (a, b) => a.x + a.width / 2 - (b.x + b.width / 2)
+    );
+    const leftmost = sorted[0].x;
+    const rightmost = sorted[sorted.length - 1].x + sorted[sorted.length - 1].width;
+    const totalWidth = sorted.reduce((sum, n) => sum + n.width, 0);
+    const spacing = (rightmost - leftmost - totalWidth) / (sorted.length - 1);
+    const posMap = new Map<string, number>();
     let currentX = leftmost;
-    set(state => ({
-      nodes: state.nodes.map(n => {
-        if (!selectedNodeIds.includes(n.id)) return n;
-        const newX = currentX;
-        currentX += n.width + spacing;
-        return { ...n, x: newX };
-      }),
-      dirty: true,
-    }));
+    for (const n of sorted) {
+      posMap.set(n.id, currentX);
+      currentX += n.width + spacing;
+    }
+    set(state => {
+      const updated = state.nodes.map(n =>
+        posMap.has(n.id) ? { ...n, x: posMap.get(n.id)! } : n
+      );
+      return {
+        nodes: updated,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: updated } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 
@@ -499,23 +617,31 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const { selectedNodeIds, nodes } = get();
     if (selectedNodeIds.length < 3) return;
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
-    // Sort by center Y
-    selectedNodes.sort((a, b) => a.y + a.height / 2 - (b.y + b.height / 2));
-    const topmost = selectedNodes[0].y;
-    const bottommost =
-      selectedNodes[selectedNodes.length - 1].y + selectedNodes[selectedNodes.length - 1].height;
-    const totalHeight = selectedNodes.reduce((sum, n) => sum + n.height, 0);
-    const spacing = (bottommost - topmost - totalHeight) / (selectedNodes.length - 1);
+    const sorted = [...selectedNodes].sort(
+      (a, b) => a.y + a.height / 2 - (b.y + b.height / 2)
+    );
+    const topmost = sorted[0].y;
+    const bottommost = sorted[sorted.length - 1].y + sorted[sorted.length - 1].height;
+    const totalHeight = sorted.reduce((sum, n) => sum + n.height, 0);
+    const spacing = (bottommost - topmost - totalHeight) / (sorted.length - 1);
+    const posMap = new Map<string, number>();
     let currentY = topmost;
-    set(state => ({
-      nodes: state.nodes.map(n => {
-        if (!selectedNodeIds.includes(n.id)) return n;
-        const newY = currentY;
-        currentY += n.height + spacing;
-        return { ...n, y: newY };
-      }),
-      dirty: true,
-    }));
+    for (const n of sorted) {
+      posMap.set(n.id, currentY);
+      currentY += n.height + spacing;
+    }
+    set(state => {
+      const updated = state.nodes.map(n =>
+        posMap.has(n.id) ? { ...n, y: posMap.get(n.id)! } : n
+      );
+      return {
+        nodes: updated,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: updated } : s
+        ),
+      };
+    });
     pushHistoryIfNeeded(get);
   },
 

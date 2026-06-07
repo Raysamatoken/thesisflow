@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Button, Space, Typography, Tooltip, Divider, message, Dropdown } from 'antd';
 import {
   FileAddOutlined,
@@ -7,6 +7,7 @@ import {
   SortAscendingOutlined,
   DownloadOutlined,
   FileImageOutlined,
+  FilePdfOutlined,
   ZoomInOutlined,
   ZoomOutOutlined,
   FullscreenOutlined,
@@ -22,6 +23,8 @@ import { FlowNodeShape } from '../../types';
 import type { FlowNode, AnyNode, GraphEdge } from '../../types';
 import { getGraph } from '../../utils/getGraph';
 import { runAutoLayout } from '../../utils/autoLayout';
+import { exportPdf } from '../../utils/exportPdf';
+import { endpointId } from '../../utils/common';
 
 const { Text } = Typography;
 
@@ -50,40 +53,21 @@ const ToolBar: React.FC = () => {
   const dirty = useGraphStore(s => s.dirty);
   const currentFilePath = useGraphStore(s => s.currentFilePath);
   const nodeCount = useGraphStore(s => s.nodes.length);
-
-  const clearGraph = useGraphStore(s => s.clearGraph);
-  const addNode = useGraphStore(s => s.addNode);
-  const setProjectName = useGraphStore(s => s.setProjectName);
-  const loadProject = useGraphStore(s => s.loadProject);
-  const buildProjectFile = useGraphStore(s => s.buildProjectFile);
-  const setCurrentFilePath = useGraphStore(s => s.setCurrentFilePath);
-  const markClean = useGraphStore(s => s.markClean);
-  const undo = useGraphStore(s => s.undo);
-  const redo = useGraphStore(s => s.redo);
-  const canUndo = useGraphStore(s => s.canUndo);
-  const canRedo = useGraphStore(s => s.canRedo);
-  const nodes = useGraphStore(s => s.nodes);
-  const edges = useGraphStore(s => s.edges);
   const selectedNode = useGraphStore(s => s.selectedNode);
   const selectedEdgeId = useGraphStore(s => s.selectedEdgeId);
-  const copyNode = useGraphStore(s => s.addNode);
-  const addEdge = useGraphStore(s => s.addEdge);
-  const removeNode = useGraphStore(s => s.removeNode);
-  const removeEdge = useGraphStore(s => s.removeEdge);
 
-  // Clipboard for copy/paste
-  const [clipboard, setClipboard] = React.useState<{ nodes: AnyNode[]; edges: GraphEdge[] } | null>(
-    null
-  );
+  const [clipboard, setClipboard] = useState<{ nodes: AnyNode[]; edges: GraphEdge[] } | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
+  const clipboardRef = useRef(clipboard);
+  clipboardRef.current = clipboard;
 
-  // 新建项目：在渲染进程内直接完成，不依赖 IPC
   const handleNew = () => {
-    clearGraph();
-    setProjectName('未命名项目');
+    const store = useGraphStore.getState();
+    store.clearGraph();
+    store.setProjectName('未命名项目');
     const startNode = getDefaultStartNode();
-    addNode(startNode);
-    markClean();
+    store.addNode(startNode);
+    store.markClean();
     message.success('已创建新项目');
   };
 
@@ -96,8 +80,9 @@ const ToolBar: React.FC = () => {
     try {
       const result = await api.openProject();
       if (!result) return;
-      loadProject(result.project);
-      setCurrentFilePath(result.filePath);
+      useGraphStore.getState().loadProject(result.project);
+      useGraphStore.getState().setCurrentFilePath(result.filePath);
+      setRecentFiles(await api.getRecentFiles());
       message.success(`已打开「${result.project.name}」`);
     } catch {
       message.error('打开项目失败');
@@ -111,19 +96,19 @@ const ToolBar: React.FC = () => {
       return;
     }
     try {
-      const projectFile = buildProjectFile();
+      const projectFile = useGraphStore.getState().buildProjectFile();
       const savedPath = await api.saveProject(projectFile, currentFilePath ?? undefined);
       if (savedPath) {
-        setCurrentFilePath(savedPath);
-        markClean();
+        useGraphStore.getState().setCurrentFilePath(savedPath);
+        useGraphStore.getState().markClean();
+        setRecentFiles(await api.getRecentFiles());
         message.success('项目已保存');
       }
     } catch {
       message.error('保存项目失败');
     }
-  }, [buildProjectFile, currentFilePath, markClean, setCurrentFilePath]);
+  }, [currentFilePath]);
 
-  // Load recent files on mount
   useEffect(() => {
     const api = window.thesisFlow;
     if (api?.getRecentFiles) {
@@ -131,21 +116,21 @@ const ToolBar: React.FC = () => {
     }
   }, []);
 
-  // Auto-save listener
   useEffect(() => {
     const api = window.thesisFlow;
     if (api?.onAutoSave) {
       const cleanup = api.onAutoSave(() => {
-        if (dirty && currentFilePath) {
+        const { dirty: isDirty, currentFilePath: fp } = useGraphStore.getState();
+        if (isDirty && fp) {
           void handleSave();
         }
       });
       return cleanup;
     }
-  }, [dirty, currentFilePath, handleSave]);
+  }, [handleSave]);
 
   const handleAutoLayout = async () => {
-    if (nodeCount === 0) {
+    if (useGraphStore.getState().nodes.length === 0) {
       message.warning('画布为空，请先添加节点');
       return;
     }
@@ -164,7 +149,7 @@ const ToolBar: React.FC = () => {
       message.error('画布未初始化');
       return;
     }
-    if (nodeCount === 0) {
+    if (useGraphStore.getState().nodes.length === 0) {
       message.warning('画布为空，请先添加节点');
       return;
     }
@@ -193,112 +178,34 @@ const ToolBar: React.FC = () => {
     }
   };
 
-  // Zoom controls
-  const handleZoomIn = () => {
-    const graph = getGraph();
-    if (graph) {
-      graph.zoom(1.2);
+  const handleExportPdf = async () => {
+    if (useGraphStore.getState().nodes.length === 0) {
+      message.warning('画布为空，请先添加节点');
+      return;
+    }
+    try {
+      const ok = await exportPdf(useGraphStore.getState().projectName);
+      if (ok) {
+        message.success('已导出 PDF 文件');
+      }
+    } catch {
+      message.error('PDF 导出失败');
     }
   };
 
-  const handleZoomOut = () => {
-    const graph = getGraph();
-    if (graph) {
-      graph.zoom(0.8);
-    }
-  };
-
-  const handleZoomReset = () => {
-    const graph = getGraph();
-    if (graph) {
-      graph.zoom(1);
-    }
-  };
-
+  const handleZoomIn = () => { getGraph()?.zoom(1.2); };
+  const handleZoomOut = () => { getGraph()?.zoom(0.8); };
+  const handleZoomReset = () => { getGraph()?.zoom(1); };
   const handleZoomFit = () => {
     const graph = getGraph();
-    if (graph && nodeCount > 0) {
+    if (graph && useGraphStore.getState().nodes.length > 0) {
       graph.zoomToFit({ padding: 40 });
     }
   };
 
-  // Undo/Redo
-  const handleUndo = () => {
-    if (canUndo()) {
-      undo();
-      message.success('已撤销');
-    }
-  };
-
-  const handleRedo = () => {
-    if (canRedo()) {
-      redo();
-      message.success('已重做');
-    }
-  };
-
-  // Copy/Paste
-  const handleCopy = () => {
-    if (selectedNode) {
-      // Copy selected node
-      const nodeToCopy = selectedNode;
-      const connectedEdges = edges.filter(
-        e => endpointId(e.source) === nodeToCopy.id || endpointId(e.target) === nodeToCopy.id
-      );
-      setClipboard({ nodes: [nodeToCopy], edges: connectedEdges });
-      message.success('已复制节点');
-    } else if (selectedEdgeId) {
-      const edgeToCopy = edges.find(e => e.id === selectedEdgeId);
-      if (edgeToCopy) {
-        setClipboard({ nodes: [], edges: [edgeToCopy] });
-        message.success('已复制连线');
-      }
-    }
-  };
-
-  const handlePaste = () => {
-    if (!clipboard) return;
-
-    const offset = 20;
-    const newNodes: AnyNode[] = clipboard.nodes.map(node => ({
-      ...node,
-      id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      x: node.x + offset,
-      y: node.y + offset,
-    }));
-
-    const nodeIdMap = new Map<string, string>();
-    newNodes.forEach((newNode, i) => {
-      nodeIdMap.set(clipboard.nodes[i].id, newNode.id);
-    });
-
-    const newEdges: GraphEdge[] = clipboard.edges.map((edge, i) => ({
-      ...edge,
-      id: `edge-${Date.now()}-${i}`,
-      source:
-        typeof edge.source === 'string'
-          ? (nodeIdMap.get(edge.source) ?? edge.source)
-          : { ...edge.source, cell: nodeIdMap.get(edge.source.cell) ?? edge.source.cell },
-      target:
-        typeof edge.target === 'string'
-          ? (nodeIdMap.get(edge.target) ?? edge.target)
-          : { ...edge.target, cell: nodeIdMap.get(edge.target.cell) ?? edge.target.cell },
-    }));
-
-    newNodes.forEach(node => copyNode(node));
-    newEdges.forEach(edge => addEdge(edge));
-
-    message.success('已粘贴');
-  };
-
-  function endpointId(ep: GraphEdge['source']): string {
-    return typeof ep === 'string' ? ep : ep.cell;
-  }
-
-  // Keyboard shortcuts
+  // Keyboard shortcuts - all use getState() to avoid stale closures
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -308,26 +215,71 @@ const ToolBar: React.FC = () => {
 
       if (isCtrl && e.key === 'z' && !isShift) {
         e.preventDefault();
-        handleUndo();
+        if (useGraphStore.getState().canUndo()) {
+          useGraphStore.getState().undo();
+        }
       } else if (isCtrl && e.key === 'z' && isShift) {
         e.preventDefault();
-        handleRedo();
+        if (useGraphStore.getState().canRedo()) {
+          useGraphStore.getState().redo();
+        }
       } else if (isCtrl && e.key === 'y') {
         e.preventDefault();
-        handleRedo();
+        if (useGraphStore.getState().canRedo()) {
+          useGraphStore.getState().redo();
+        }
       } else if (isCtrl && e.key === 'c') {
         e.preventDefault();
-        handleCopy();
+        const { selectedNode, selectedEdgeId, edges } = useGraphStore.getState();
+        if (selectedNode) {
+          const connectedEdges = edges.filter(
+            edge => endpointId(edge.source) === selectedNode.id || endpointId(edge.target) === selectedNode.id
+          );
+          setClipboard({ nodes: [selectedNode], edges: connectedEdges });
+        } else if (selectedEdgeId) {
+          const edgeToCopy = edges.find(edge => edge.id === selectedEdgeId);
+          if (edgeToCopy) {
+            setClipboard({ nodes: [], edges: [edgeToCopy] });
+          }
+        }
       } else if (isCtrl && e.key === 'v') {
         e.preventDefault();
-        handlePaste();
+        const clip = clipboardRef.current;
+        if (!clip) return;
+        const offset = 20;
+        const newNodes: AnyNode[] = clip.nodes.map(node => ({
+          ...node,
+          id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          x: node.x + offset,
+          y: node.y + offset,
+        }));
+        const nodeIdMap = new Map<string, string>();
+        newNodes.forEach((newNode, i) => {
+          nodeIdMap.set(clip.nodes[i].id, newNode.id);
+        });
+        const newEdges: GraphEdge[] = clip.edges.map((edge, i) => ({
+          ...edge,
+          id: `edge-${Date.now()}-${i}`,
+          source:
+            typeof edge.source === 'string'
+              ? (nodeIdMap.get(edge.source) ?? edge.source)
+              : { ...edge.source, cell: nodeIdMap.get(edge.source.cell) ?? edge.source.cell },
+          target:
+            typeof edge.target === 'string'
+              ? (nodeIdMap.get(edge.target) ?? edge.target)
+              : { ...edge.target, cell: nodeIdMap.get(edge.target.cell) ?? edge.target.cell },
+        }));
+        const store = useGraphStore.getState();
+        newNodes.forEach(node => store.addNode(node));
+        newEdges.forEach(edge => store.addEdge(edge));
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const { selectedNode, selectedEdgeId } = useGraphStore.getState();
         if (selectedNode) {
           e.preventDefault();
-          removeNode(selectedNode.id);
+          useGraphStore.getState().removeNode(selectedNode.id);
         } else if (selectedEdgeId) {
           e.preventDefault();
-          removeEdge(selectedEdgeId);
+          useGraphStore.getState().removeEdge(selectedEdgeId);
         }
       } else if (isCtrl && e.key === '0') {
         e.preventDefault();
@@ -343,23 +295,42 @@ const ToolBar: React.FC = () => {
         handleZoomOut();
       } else if (isCtrl && e.key === 's') {
         e.preventDefault();
-        handleSave();
+        void handleSave();
       } else if (isCtrl && e.key === 'n') {
         e.preventDefault();
         handleNew();
       } else if (isCtrl && e.key === 'o') {
         e.preventDefault();
-        handleOpen();
+        void handleOpen();
       } else if (isCtrl && e.key === 'f') {
         e.preventDefault();
-        // Open search in GraphCanvas via custom event
         window.dispatchEvent(new CustomEvent('thesisflow:open-search'));
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, selectedNode, selectedEdgeId, clipboard, nodes, edges]);
+  }, [handleSave]);
+
+  const handleOpenRecent = async (filePath: string) => {
+    const api = window.thesisFlow;
+    if (!api?.openFileByPath) {
+      message.warning('请在 Electron 环境中运行');
+      return;
+    }
+    try {
+      const result = await api.openFileByPath(filePath);
+      if (result) {
+        useGraphStore.getState().loadProject(result.project);
+        useGraphStore.getState().setCurrentFilePath(result.filePath);
+        message.success(`已打开「${result.project.name}」`);
+      } else {
+        message.error('无法打开该文件');
+      }
+    } catch {
+      message.error('打开文件失败');
+    }
+  };
 
   return (
     <div
@@ -404,13 +375,7 @@ const ToolBar: React.FC = () => {
                   key: `recent-${index}`,
                   label: file.split(/[\\/]/).pop() || file,
                   title: file,
-                  onClick: async () => {
-                    const api = window.thesisFlow;
-                    if (api) {
-                      // We need to open the specific file - for now just show message
-                      message.info(`打开: ${file}`);
-                    }
-                  },
+                  onClick: () => void handleOpenRecent(file),
                 })),
                 { type: 'divider' as const },
                 {
@@ -446,12 +411,22 @@ const ToolBar: React.FC = () => {
         </Space>
         <Space size={4}>
           <Tooltip title="撤销 (Ctrl+Z)">
-            <Button size="small" icon={<UndoOutlined />} onClick={handleUndo} disabled={!canUndo()}>
+            <Button
+              size="small"
+              icon={<UndoOutlined />}
+              onClick={() => { if (useGraphStore.getState().canUndo()) useGraphStore.getState().undo(); }}
+              disabled={!useGraphStore.getState().canUndo()}
+            >
               撤销
             </Button>
           </Tooltip>
           <Tooltip title="重做 (Ctrl+Y / Ctrl+Shift+Z)">
-            <Button size="small" icon={<RedoOutlined />} onClick={handleRedo} disabled={!canRedo()}>
+            <Button
+              size="small"
+              icon={<RedoOutlined />}
+              onClick={() => { if (useGraphStore.getState().canRedo()) useGraphStore.getState().redo(); }}
+              disabled={!useGraphStore.getState().canRedo()}
+            >
               重做
             </Button>
           </Tooltip>
@@ -459,14 +434,61 @@ const ToolBar: React.FC = () => {
             <Button
               size="small"
               icon={<CopyOutlined />}
-              onClick={handleCopy}
+              onClick={() => {
+                const state = useGraphStore.getState();
+                if (state.selectedNode) {
+                  const connectedEdges = state.edges.filter(
+                    e => endpointId(e.source) === state.selectedNode!.id ||
+                         endpointId(e.target) === state.selectedNode!.id
+                  );
+                  setClipboard({ nodes: [state.selectedNode], edges: connectedEdges });
+                } else if (state.selectedEdgeId) {
+                  const edgeToCopy = state.edges.find(e => e.id === state.selectedEdgeId);
+                  if (edgeToCopy) {
+                    setClipboard({ nodes: [], edges: [edgeToCopy] });
+                  }
+                }
+              }}
               disabled={!selectedNode && !selectedEdgeId}
             >
               复制
             </Button>
           </Tooltip>
           <Tooltip title="粘贴 (Ctrl+V)">
-            <Button size="small" onClick={handlePaste} disabled={!clipboard}>
+            <Button
+              size="small"
+              onClick={() => {
+                const clip = clipboardRef.current;
+                if (!clip) return;
+                const offset = 20;
+                const newNodes: AnyNode[] = clip.nodes.map(node => ({
+                  ...node,
+                  id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                  x: node.x + offset,
+                  y: node.y + offset,
+                }));
+                const nodeIdMap = new Map<string, string>();
+                newNodes.forEach((newNode, i) => {
+                  nodeIdMap.set(clip.nodes[i].id, newNode.id);
+                });
+                const newEdges: GraphEdge[] = clip.edges.map((edge, i) => ({
+                  ...edge,
+                  id: `edge-${Date.now()}-${i}`,
+                  source:
+                    typeof edge.source === 'string'
+                      ? (nodeIdMap.get(edge.source) ?? edge.source)
+                      : { ...edge.source, cell: nodeIdMap.get(edge.source.cell) ?? edge.source.cell },
+                  target:
+                    typeof edge.target === 'string'
+                      ? (nodeIdMap.get(edge.target) ?? edge.target)
+                      : { ...edge.target, cell: nodeIdMap.get(edge.target.cell) ?? edge.target.cell },
+                }));
+                const store = useGraphStore.getState();
+                newNodes.forEach(node => store.addNode(node));
+                newEdges.forEach(edge => store.addEdge(edge));
+              }}
+              disabled={!clipboard}
+            >
               粘贴
             </Button>
           </Tooltip>
@@ -487,6 +509,11 @@ const ToolBar: React.FC = () => {
           <Tooltip title="导出为矢量 SVG">
             <Button size="small" icon={<DownloadOutlined />} onClick={() => handleExport('svg')}>
               导出 SVG
+            </Button>
+          </Tooltip>
+          <Tooltip title="导出为 PDF 文档">
+            <Button size="small" icon={<FilePdfOutlined />} onClick={handleExportPdf}>
+              导出 PDF
             </Button>
           </Tooltip>
         </Space>

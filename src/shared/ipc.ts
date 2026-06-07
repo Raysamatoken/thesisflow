@@ -20,12 +20,16 @@ export interface ThesisFlowAPI {
   saveProject(data: ProjectFile, filePath?: string): Promise<string | null>;
   /** 导出为图片（PNG / SVG） */
   exportImage(data: string, format: 'png' | 'svg'): Promise<boolean>;
+  /** 导出为 PDF */
+  exportPdf(pdfData: string, projectName: string): Promise<boolean>;
 
   // ---- 最近文件 ----
   /** 获取最近文件列表 */
   getRecentFiles(): Promise<string[]>;
   /** 清空最近文件列表 */
   clearRecentFiles(): Promise<void>;
+  /** 通过绝对路径打开项目文件（用于最近文件） */
+  openFileByPath(filePath: string): Promise<{ project: ProjectFile; filePath: string } | null>;
 
   // ---- 窗口操作 ----
   minimize(): void;

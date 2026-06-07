@@ -34,6 +34,11 @@ const thesisFlowApi = {
     return ipcRenderer.invoke('export-image', imageData, format);
   },
 
+  /** 导出为 PDF */
+  exportPdf(pdfData: string, projectName: string): Promise<boolean> {
+    return ipcRenderer.invoke('export-pdf', pdfData, projectName);
+  },
+
   // ---- 最近文件 ----
 
   /** 获取最近文件列表 */
@@ -44,6 +49,11 @@ const thesisFlowApi = {
   /** 清空最近文件列表 */
   clearRecentFiles(): Promise<void> {
     return ipcRenderer.invoke('clear-recent-files');
+  },
+
+  /** 通过绝对路径打开项目文件（用于最近文件） */
+  openFileByPath(filePath: string): Promise<{ project: ProjectFile; filePath: string } | null> {
+    return ipcRenderer.invoke('open-file-by-path', filePath);
   },
 
   // ---- 窗口控制 ----
