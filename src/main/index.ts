@@ -103,7 +103,7 @@ function registerIpcHandlers(): void {
     };
   });
 
-  ipcMain.handle('open-project', async (): Promise<ProjectFile | null> => {
+  ipcMain.handle('open-project', async () => {
     if (!mainWindow) return null;
     try {
       const result = await dialog.showOpenDialog(mainWindow, {
@@ -119,9 +119,8 @@ function registerIpcHandlers(): void {
         dialog.showErrorBox('文件格式错误', '所选文件不是有效的 ThesisFlow 项目文件。');
         return null;
       }
-      (parsed as any).__filePath = filePath;
       await addRecentFile(filePath);
-      return parsed;
+      return { project: parsed, filePath };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       dialog.showErrorBox('打开失败', `无法读取项目文件：${msg}`);
@@ -226,13 +225,6 @@ function registerIpcHandlers(): void {
       }
     }
   );
-
-  // Auto-save trigger from main process
-  ipcMain.on('auto-save-trigger', () => {
-    if (mainWindow) {
-      mainWindow.webContents.send('auto-save-trigger');
-    }
-  });
 }
 
 app.whenReady().then(() => {

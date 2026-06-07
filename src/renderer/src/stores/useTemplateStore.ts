@@ -30,13 +30,76 @@ const BUILTIN_TEMPLATES: Template[] = [
     category: '业务流程',
     description: '用户登录验证流程图',
     nodes: [
-      { id: 't1', shape: FlowNodeShape.Terminal, x: 200, y: 50, width: 120, height: 50, label: '开始', data: { shape: FlowNodeShape.Terminal } },
-      { id: 't2', shape: FlowNodeShape.IO, x: 200, y: 150, width: 140, height: 60, label: '输入账号密码', data: { shape: FlowNodeShape.IO } },
-      { id: 't3', shape: FlowNodeShape.Process, x: 200, y: 260, width: 140, height: 60, label: '验证信息', data: { shape: FlowNodeShape.Process } },
-      { id: 't4', shape: FlowNodeShape.Decision, x: 200, y: 370, width: 120, height: 80, label: '验证通过？', data: { shape: FlowNodeShape.Decision } },
-      { id: 't5', shape: FlowNodeShape.Process, x: 200, y: 500, width: 140, height: 60, label: '进入主页', data: { shape: FlowNodeShape.Process } },
-      { id: 't6', shape: FlowNodeShape.IO, x: 400, y: 370, width: 140, height: 60, label: '提示错误', data: { shape: FlowNodeShape.IO } },
-      { id: 't7', shape: FlowNodeShape.Terminal, x: 200, y: 610, width: 120, height: 50, label: '结束', data: { shape: FlowNodeShape.Terminal } },
+      {
+        id: 't1',
+        shape: FlowNodeShape.Terminal,
+        x: 200,
+        y: 50,
+        width: 120,
+        height: 50,
+        label: '开始',
+        data: { shape: FlowNodeShape.Terminal },
+      },
+      {
+        id: 't2',
+        shape: FlowNodeShape.IO,
+        x: 200,
+        y: 150,
+        width: 140,
+        height: 60,
+        label: '输入账号密码',
+        data: { shape: FlowNodeShape.IO },
+      },
+      {
+        id: 't3',
+        shape: FlowNodeShape.Process,
+        x: 200,
+        y: 260,
+        width: 140,
+        height: 60,
+        label: '验证信息',
+        data: { shape: FlowNodeShape.Process },
+      },
+      {
+        id: 't4',
+        shape: FlowNodeShape.Decision,
+        x: 200,
+        y: 370,
+        width: 120,
+        height: 80,
+        label: '验证通过？',
+        data: { shape: FlowNodeShape.Decision },
+      },
+      {
+        id: 't5',
+        shape: FlowNodeShape.Process,
+        x: 200,
+        y: 500,
+        width: 140,
+        height: 60,
+        label: '进入主页',
+        data: { shape: FlowNodeShape.Process },
+      },
+      {
+        id: 't6',
+        shape: FlowNodeShape.IO,
+        x: 400,
+        y: 370,
+        width: 140,
+        height: 60,
+        label: '提示错误',
+        data: { shape: FlowNodeShape.IO },
+      },
+      {
+        id: 't7',
+        shape: FlowNodeShape.Terminal,
+        x: 200,
+        y: 610,
+        width: 120,
+        height: 50,
+        label: '结束',
+        data: { shape: FlowNodeShape.Terminal },
+      },
     ],
     edges: [
       { id: 'e1', source: 't1', target: 't2', data: {} },
@@ -55,9 +118,36 @@ const BUILTIN_TEMPLATES: Template[] = [
     category: '系统架构',
     description: '经典的三层系统架构图',
     nodes: [
-      { id: 'm1', shape: ModuleNodeShape.Generic, x: 200, y: 50, width: 200, height: 80, label: '表示层', data: { shape: ModuleNodeShape.Generic } },
-      { id: 'm2', shape: ModuleNodeShape.Generic, x: 200, y: 180, width: 200, height: 80, label: '业务逻辑层', data: { shape: ModuleNodeShape.Generic } },
-      { id: 'm3', shape: ModuleNodeShape.Generic, x: 200, y: 310, width: 200, height: 80, label: '数据访问层', data: { shape: ModuleNodeShape.Generic } },
+      {
+        id: 'm1',
+        shape: ModuleNodeShape.Generic,
+        x: 200,
+        y: 50,
+        width: 200,
+        height: 80,
+        label: '表示层',
+        data: { shape: ModuleNodeShape.Generic },
+      },
+      {
+        id: 'm2',
+        shape: ModuleNodeShape.Generic,
+        x: 200,
+        y: 180,
+        width: 200,
+        height: 80,
+        label: '业务逻辑层',
+        data: { shape: ModuleNodeShape.Generic },
+      },
+      {
+        id: 'm3',
+        shape: ModuleNodeShape.Generic,
+        x: 200,
+        y: 310,
+        width: 200,
+        height: 80,
+        label: '数据访问层',
+        data: { shape: ModuleNodeShape.Generic },
+      },
     ],
     edges: [
       { id: 'e1', source: 'm1', target: 'm2', data: {} },
@@ -71,10 +161,46 @@ const BUILTIN_TEMPLATES: Template[] = [
     category: '数据流',
     description: '基本数据处理流程',
     nodes: [
-      { id: 'd1', shape: FlowNodeShape.IO, x: 50, y: 200, width: 140, height: 60, label: '数据输入', data: { shape: FlowNodeShape.IO } },
-      { id: 'd2', shape: FlowNodeShape.Process, x: 250, y: 200, width: 140, height: 60, label: '数据处理', data: { shape: FlowNodeShape.Process } },
-      { id: 'd3', shape: FlowNodeShape.Process, x: 450, y: 200, width: 140, height: 60, label: '数据存储', data: { shape: FlowNodeShape.Process } },
-      { id: 'd4', shape: FlowNodeShape.IO, x: 650, y: 200, width: 140, height: 60, label: '数据输出', data: { shape: FlowNodeShape.IO } },
+      {
+        id: 'd1',
+        shape: FlowNodeShape.IO,
+        x: 50,
+        y: 200,
+        width: 140,
+        height: 60,
+        label: '数据输入',
+        data: { shape: FlowNodeShape.IO },
+      },
+      {
+        id: 'd2',
+        shape: FlowNodeShape.Process,
+        x: 250,
+        y: 200,
+        width: 140,
+        height: 60,
+        label: '数据处理',
+        data: { shape: FlowNodeShape.Process },
+      },
+      {
+        id: 'd3',
+        shape: FlowNodeShape.Process,
+        x: 450,
+        y: 200,
+        width: 140,
+        height: 60,
+        label: '数据存储',
+        data: { shape: FlowNodeShape.Process },
+      },
+      {
+        id: 'd4',
+        shape: FlowNodeShape.IO,
+        x: 650,
+        y: 200,
+        width: 140,
+        height: 60,
+        label: '数据输出',
+        data: { shape: FlowNodeShape.IO },
+      },
     ],
     edges: [
       { id: 'e1', source: 'd1', target: 'd2', data: {} },
@@ -89,7 +215,7 @@ export const useTemplateStore = create<TemplateState>()((set, get) => ({
   templates: [...BUILTIN_TEMPLATES],
   categories: ['业务流程', '系统架构', '数据流', '自定义'],
 
-  addTemplate: (template) => {
+  addTemplate: template => {
     const newTemplate: Template = {
       ...template,
       id: `template-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -100,18 +226,18 @@ export const useTemplateStore = create<TemplateState>()((set, get) => ({
     }));
   },
 
-  removeTemplate: (id) => {
+  removeTemplate: id => {
     if (id.startsWith('builtin-')) return; // Can't remove built-in templates
     set(state => ({
       templates: state.templates.filter(t => t.id !== id),
     }));
   },
 
-  getTemplatesByCategory: (category) => {
+  getTemplatesByCategory: category => {
     return get().templates.filter(t => t.category === category);
   },
 
-  importTemplate: (json) => {
+  importTemplate: json => {
     try {
       const data = JSON.parse(json);
       if (data.name && data.nodes && data.edges) {
@@ -130,7 +256,7 @@ export const useTemplateStore = create<TemplateState>()((set, get) => ({
     }
   },
 
-  exportTemplate: (id) => {
+  exportTemplate: id => {
     const template = get().templates.find(t => t.id === id);
     if (!template) return null;
     return JSON.stringify(template, null, 2);

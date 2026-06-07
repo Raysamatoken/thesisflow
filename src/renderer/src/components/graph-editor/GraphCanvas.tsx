@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Graph } from '@antv/x6';
 import { Export } from '@antv/x6-plugin-export';
 import { Transform } from '@antv/x6-plugin-transform';
-import { message, Dropdown, Input } from 'antd';
+import { message, Dropdown, Input, Modal } from 'antd';
 import { CopyOutlined, DeleteOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
 import { useGraphStore, EDGE_PRESETS } from '../../stores/useGraphStore';
 import type { AnyNode, GraphEdge } from '../../types';
@@ -53,6 +53,9 @@ const GraphCanvas: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<AnyNode[]>([]);
   const [selectedResultIndex, setSelectedResultIndex] = useState(0);
+  const [edgeLabelModalOpen, setEdgeLabelModalOpen] = useState(false);
+  const [edgeLabelValue, setEdgeLabelValue] = useState('');
+  const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
 
   const nodes = useGraphStore(s => s.nodes);
   const edges = useGraphStore(s => s.edges);
@@ -364,12 +367,11 @@ const GraphCanvas: React.FC = () => {
     // Edge double-click for inline label editing
     graph.on('edge:dblclick', ({ edge }) => {
       const currentLabels = edge.getLabels();
-      const currentLabel = currentLabels.length > 0 ? (currentLabels[0] as any).attrs?.label?.text ?? '' : '';
-      const newLabel = prompt('输入连线标签:', typeof currentLabel === 'string' ? currentLabel : '');
-      if (newLabel !== null) {
-        updateEdge(edge.id, { label: newLabel });
-        edge.setLabels([{ attrs: { label: { text: newLabel } } }]);
-      }
+      const currentLabel =
+        currentLabels.length > 0 ? ((currentLabels[0] as any).attrs?.label?.text ?? '') : '';
+      setEdgeLabelValue(typeof currentLabel === 'string' ? currentLabel : '');
+      setEditingEdgeId(edge.id);
+      setEdgeLabelModalOpen(true);
     });
 
     // Restore zoom from localStorage
@@ -718,6 +720,53 @@ const GraphCanvas: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Edge Label Edit Modal */}
+      <Modal
+        title="编辑连线标签"
+        open={edgeLabelModalOpen}
+        onOk={() => {
+          if (editingEdgeId) {
+            updateEdge(editingEdgeId, { label: edgeLabelValue });
+            const graph = graphRef.current;
+            if (graph) {
+              const edge = graph.getCellById(editingEdgeId);
+              if (edge && edge.isEdge()) {
+                (edge as any).setLabels([{ attrs: { label: { text: edgeLabelValue } } }]);
+              }
+            }
+          }
+          setEdgeLabelModalOpen(false);
+          setEditingEdgeId(null);
+        }}
+        onCancel={() => {
+          setEdgeLabelModalOpen(false);
+          setEditingEdgeId(null);
+        }}
+        okText="确定"
+        cancelText="取消"
+      >
+        <Input
+          value={edgeLabelValue}
+          onChange={e => setEdgeLabelValue(e.target.value)}
+          placeholder="输入连线标签"
+          autoFocus
+          onPressEnter={() => {
+            if (editingEdgeId) {
+              updateEdge(editingEdgeId, { label: edgeLabelValue });
+              const graph = graphRef.current;
+              if (graph) {
+                const edge = graph.getCellById(editingEdgeId);
+                if (edge && edge.isEdge()) {
+                  (edge as any).setLabels([{ attrs: { label: { text: edgeLabelValue } } }]);
+                }
+              }
+            }
+            setEdgeLabelModalOpen(false);
+            setEditingEdgeId(null);
+          }}
+        />
+      </Modal>
     </>
   );
 };

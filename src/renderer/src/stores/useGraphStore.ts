@@ -64,7 +64,10 @@ export interface GraphState {
 
   addNode: (node: AnyNode) => void;
   removeNode: (nodeId: string) => void;
-  updateNode: (nodeId: string, patch: Partial<AnyNode>) => void;
+  updateNode: (
+    nodeId: string,
+    patch: Partial<Pick<AnyNode, 'x' | 'y' | 'width' | 'height' | 'label' | 'data'>>
+  ) => void;
 
   addEdge: (edge: GraphEdge) => void;
   removeEdge: (edgeId: string) => void;
@@ -155,7 +158,10 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     pushHistoryIfNeeded(get);
   },
 
-  updateNode: (nodeId: string, patch: Partial<AnyNode>) => {
+  updateNode: (
+    nodeId: string,
+    patch: Partial<Pick<AnyNode, 'x' | 'y' | 'width' | 'height' | 'label' | 'data'>>
+  ) => {
     set((state: GraphState) => ({
       nodes: state.nodes.map((n: AnyNode) =>
         n.id === nodeId ? ({ ...n, ...patch } as AnyNode) : n
@@ -225,7 +231,6 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const firstSheet = sheets[0];
     set({
       projectName: project.name,
-      currentFilePath: (project as any).__filePath ?? null,
       sheets,
       activeSheetId: firstSheet?.id ?? null,
       nodes: firstSheet?.nodes ?? [],

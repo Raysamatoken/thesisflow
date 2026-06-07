@@ -42,8 +42,14 @@ const TemplatePanel: React.FC = () => {
     });
 
     template.edges.forEach(edge => {
-      const newSource = typeof edge.source === 'string' ? (idMap.get(edge.source) ?? edge.source) : { ...edge.source, cell: idMap.get(edge.source.cell) ?? edge.source.cell };
-      const newTarget = typeof edge.target === 'string' ? (idMap.get(edge.target) ?? edge.target) : { ...edge.target, cell: idMap.get(edge.target.cell) ?? edge.target.cell };
+      const newSource =
+        typeof edge.source === 'string'
+          ? (idMap.get(edge.source) ?? edge.source)
+          : { ...edge.source, cell: idMap.get(edge.source.cell) ?? edge.source.cell };
+      const newTarget =
+        typeof edge.target === 'string'
+          ? (idMap.get(edge.target) ?? edge.target)
+          : { ...edge.target, cell: idMap.get(edge.target.cell) ?? edge.target.cell };
       addEdge({
         ...edge,
         id: `edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

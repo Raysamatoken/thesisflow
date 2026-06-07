@@ -15,7 +15,7 @@ const thesisFlowApi = {
   },
 
   /** 打开 .thesisflow 文件 */
-  openProject(): Promise<ProjectFile | null> {
+  openProject(): Promise<{ project: ProjectFile; filePath: string } | null> {
     return ipcRenderer.invoke('open-project');
   },
 

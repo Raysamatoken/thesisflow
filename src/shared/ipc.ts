@@ -11,7 +11,7 @@ export interface ThesisFlowAPI {
   /** 新建项目，返回默认 ProjectFile */
   createProject(): Promise<ProjectFile>;
   /** 打开 .thesisflow 文件 */
-  openProject(): Promise<ProjectFile | null>;
+  openProject(): Promise<{ project: ProjectFile; filePath: string } | null>;
   /**
    * 保存项目
    * @param filePath 已知路径时直接写入；省略则弹出系统对话框

@@ -73,6 +73,7 @@ export default [
         clearInterval: 'readonly',
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',
+        localStorage: 'readonly',
         Electron: 'readonly',
       },
     },

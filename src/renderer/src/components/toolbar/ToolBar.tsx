@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Button, Space, Typography, Tooltip, Divider, message, Dropdown } from 'antd';
 import {
   FileAddOutlined,
@@ -94,16 +94,17 @@ const ToolBar: React.FC = () => {
       return;
     }
     try {
-      const project = await api.openProject();
-      if (!project) return;
-      loadProject(project);
-      message.success(`已打开「${project.name}」`);
+      const result = await api.openProject();
+      if (!result) return;
+      loadProject(result.project);
+      setCurrentFilePath(result.filePath);
+      message.success(`已打开「${result.project.name}」`);
     } catch {
       message.error('打开项目失败');
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     const api = window.thesisFlow;
     if (!api) {
       message.warning('请在 Electron 环境中运行');
@@ -120,7 +121,7 @@ const ToolBar: React.FC = () => {
     } catch {
       message.error('保存项目失败');
     }
-  };
+  }, [buildProjectFile, currentFilePath, markClean, setCurrentFilePath]);
 
   // Load recent files on mount
   useEffect(() => {

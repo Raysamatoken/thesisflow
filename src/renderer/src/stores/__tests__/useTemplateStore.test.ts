@@ -23,7 +23,9 @@ vi.mock('../../../types', () => ({
 describe('useTemplateStore', () => {
   beforeEach(() => {
     useTemplateStore.setState({
-      templates: [...useTemplateStore.getState().templates.filter(t => !t.id.startsWith('custom-'))],
+      templates: [
+        ...useTemplateStore.getState().templates.filter(t => !t.id.startsWith('custom-')),
+      ],
     });
   });
 
@@ -114,7 +116,9 @@ describe('useTemplateStore', () => {
     const result = useTemplateStore.getState().importTemplate(templateJson);
     expect(result).toBe(true);
 
-    const imported = useTemplateStore.getState().templates.find(t => t.name === 'Imported Template');
+    const imported = useTemplateStore
+      .getState()
+      .templates.find(t => t.name === 'Imported Template');
     expect(imported).toBeDefined();
   });
 
