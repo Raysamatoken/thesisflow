@@ -1,7 +1,11 @@
 node_modules/
 out/
 dist/
-.DS_Store
-Thumbs.db
+*.exe
 *.log
 npm-debug.log*
+.DS_Store
+Thumbs.db
+.env
+.env.local
+.env.*.local

@@ -1,12 +1,6 @@
 import React, { useState } from 'react';
 import { Collapse, Button, Empty, Tooltip, message, Input, Modal, Select } from 'antd';
-import {
-  PlusOutlined,
-  DeleteOutlined,
-  ImportOutlined,
-  ExportOutlined,
-  CopyOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, ImportOutlined, ExportOutlined } from '@ant-design/icons';
 import { useTemplateStore, type Template } from '../../stores/useTemplateStore';
 import { useGraphStore } from '../../stores/useGraphStore';
 

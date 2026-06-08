@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useCallback } from 'react';
-import { Graph, Cell } from '@antv/x6';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import type { Cell } from '@antv/x6';
+import { Graph } from '@antv/x6';
 import { Export } from '@antv/x6-plugin-export';
 import { Transform } from '@antv/x6-plugin-transform';
 import { message, Dropdown } from 'antd';
@@ -11,8 +12,6 @@ import type { X6NodeEvent, X6EdgeEvent, X6SelectEvent, X6ScaleEvent } from '../.
 import SearchPanel from './SearchPanel';
 import EdgeLabelEditor from './EdgeLabelEditor';
 import { endpointId } from '../../utils/common';
-
-let shapesRegistered = false;
 
 function toX6NodeMeta(n: AnyNode) {
   return {
@@ -51,15 +50,22 @@ function createEdgeAttrs(edgeStyleId: string) {
     targetMarker: preset.targetMarker ? { name: 'block', width: 8, height: 6 } : null,
   };
   if (preset.strokeDasharray) lineAttrs.strokeDasharray = preset.strokeDasharray;
-  return { lineAttrs, edgeRouter: preset.router === 'normal' ? undefined : { name: preset.router }, edgeConnector: preset.connector === 'normal' ? undefined : { name: preset.connector } };
+  return {
+    lineAttrs,
+    edgeRouter: preset.router === 'normal' ? undefined : { name: preset.router },
+    edgeConnector: preset.connector === 'normal' ? undefined : { name: preset.connector },
+  };
 }
 
 const GraphCanvas: React.FC = () => {
-  const graphRef = useRef<Graph | null>(null);
+  const [graphInstance, setGraphInstance] = useState<Graph | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const syncVersion = useRef(0);
   const [contextMenu, setContextMenu] = React.useState<{
-    x: number; y: number; type: 'node' | 'edge' | 'canvas'; id: string;
+    x: number;
+    y: number;
+    type: 'node' | 'edge' | 'canvas';
+    id: string;
   } | null>(null);
 
   const nodes = useGraphStore(s => s.nodes);
@@ -82,14 +88,24 @@ const GraphCanvas: React.FC = () => {
     e.preventDefault();
     setSelectedNode(node.toJSON() as unknown as AnyNode);
     const rect = containerRef.current!.getBoundingClientRect();
-    setContextMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, type: 'node', id: node.id });
+    setContextMenu({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      type: 'node',
+      id: node.id,
+    });
   };
 
   const handleEdgeContextMenu = ({ edge, e }: X6EdgeEvent) => {
     e.preventDefault();
     setSelectedEdgeId(edge.id);
     const rect = containerRef.current!.getBoundingClientRect();
-    setContextMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, type: 'edge', id: edge.id });
+    setContextMenu({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      type: 'edge',
+      id: edge.id,
+    });
   };
 
   const handleBlankContextMenu = (e: MouseEvent) => {
@@ -110,13 +126,17 @@ const GraphCanvas: React.FC = () => {
             const connectedEdges = edges.filter(
               edge => endpointId(edge.source) === id || endpointId(edge.target) === id
             );
-            navigator.clipboard.writeText(JSON.stringify({ nodes: [node], edges: connectedEdges })).catch(() => {});
+            navigator.clipboard
+              .writeText(JSON.stringify({ nodes: [node], edges: connectedEdges }))
+              .catch(() => {});
             message.success('已复制节点');
           }
         } else if (type === 'edge') {
           const edge = edges.find(e => e.id === id);
           if (edge) {
-            navigator.clipboard.writeText(JSON.stringify({ nodes: [], edges: [edge] })).catch(() => {});
+            navigator.clipboard
+              .writeText(JSON.stringify({ nodes: [], edges: [edge] }))
+              .catch(() => {});
             message.success('已复制连线');
           }
         }
@@ -147,16 +167,19 @@ const GraphCanvas: React.FC = () => {
   ];
 
   useEffect(() => {
-    if (!shapesRegistered) {
-      registerFlowShapes();
-      shapesRegistered = true;
-    }
+    registerFlowShapes();
 
     const graph = new Graph({
       container: containerRef.current!,
       autoResize: true,
       panning: { enabled: true, modifiers: [] },
-      mousewheel: { enabled: true, modifiers: ['ctrl', 'meta'], factor: 1.1, maxScale: 3, minScale: 0.25 },
+      mousewheel: {
+        enabled: true,
+        modifiers: ['ctrl', 'meta'],
+        factor: 1.1,
+        maxScale: 3,
+        minScale: 0.25,
+      },
       connecting: {
         anchor: 'center',
         connectionPoint: 'boundary',
@@ -177,10 +200,21 @@ const GraphCanvas: React.FC = () => {
         },
       },
       // @ts-expect-error - selecting is valid but not typed in X6 2.x
-      selecting: { enabled: true, rubberband: true, showNodeSelectionBox: true, modifiers: ['shift'] },
+      selecting: {
+        enabled: true,
+        rubberband: true,
+        showNodeSelectionBox: true,
+        modifiers: ['shift'],
+      },
       highlighting: {
-        default: { name: 'stroke', args: { padding: 4, attrs: { stroke: '#1890ff', strokeWidth: 2 } } },
-        magnetAdsorbed: { name: 'stroke', args: { padding: 4, attrs: { stroke: '#1890ff', strokeWidth: 2 } } },
+        default: {
+          name: 'stroke',
+          args: { padding: 4, attrs: { stroke: '#1890ff', strokeWidth: 2 } },
+        },
+        magnetAdsorbed: {
+          name: 'stroke',
+          args: { padding: 4, attrs: { stroke: '#1890ff', strokeWidth: 2 } },
+        },
       },
       grid: { visible: true, type: 'dot', size: 10, args: { color: '#e0e0e0', thickness: 1 } },
       snapline: { enabled: true, clean: 5, filter: (cell: Cell) => cell.isNode?.() },
@@ -189,10 +223,12 @@ const GraphCanvas: React.FC = () => {
 
     graph.use(new Export());
     graph.use(new Transform({ resizing: { enabled: true }, rotating: { enabled: false } }));
-    graphRef.current = graph;
+    setGraphInstance(graph);
 
-    const showPorts = (ports: NodeListOf<SVGElement>) => ports.forEach(p => p.setAttribute('visibility', 'visible'));
-    const hidePorts = (ports: NodeListOf<SVGElement>) => ports.forEach(p => p.setAttribute('visibility', 'hidden'));
+    const showPorts = (ports: NodeListOf<SVGElement>) =>
+      ports.forEach(p => p.setAttribute('visibility', 'visible'));
+    const hidePorts = (ports: NodeListOf<SVGElement>) =>
+      ports.forEach(p => p.setAttribute('visibility', 'hidden'));
 
     graph.on('node:mouseenter', ({ node }: X6NodeEvent) => {
       showPorts(containerRef.current!.querySelectorAll('.x6-port-body'));
@@ -208,8 +244,13 @@ const GraphCanvas: React.FC = () => {
       if (edgeCreationMode && edgeCreationSourceId && node.id !== edgeCreationSourceId) {
         const { lineAttrs, edgeRouter, edgeConnector } = createEdgeAttrs(edgeStyleId);
         const newEdge = graph.addEdge({
-          source: edgeCreationSourceId, target: node.id,
-          attrs: { line: lineAttrs }, router: edgeRouter, connector: edgeConnector, labels: [], zIndex: 0,
+          source: edgeCreationSourceId,
+          target: node.id,
+          attrs: { line: lineAttrs },
+          router: edgeRouter,
+          connector: edgeConnector,
+          labels: [],
+          zIndex: 0,
         });
         addEdge(newEdge.toJSON() as unknown as GraphEdge);
         exitEdgeCreationMode();
@@ -252,10 +293,19 @@ const GraphCanvas: React.FC = () => {
 
     graph.on('edge:dblclick', ({ edge }: X6EdgeEvent) => {
       const currentLabels = edge.getLabels();
-      const currentLabel = currentLabels.length > 0 ? (currentLabels[0] as { attrs?: { label?: { text?: string } } }).attrs?.label?.text ?? '' : '';
-      window.dispatchEvent(new CustomEvent('thesisflow:edit-edge-label', {
-        detail: { edgeId: edge.id, currentLabel: typeof currentLabel === 'string' ? currentLabel : '' },
-      }));
+      const currentLabel =
+        currentLabels.length > 0
+          ? ((currentLabels[0] as { attrs?: { label?: { text?: string } } }).attrs?.label?.text ??
+            '')
+          : '';
+      window.dispatchEvent(
+        new CustomEvent('thesisflow:edit-edge-label', {
+          detail: {
+            edgeId: edge.id,
+            currentLabel: typeof currentLabel === 'string' ? currentLabel : '',
+          },
+        })
+      );
     });
 
     const savedZoom = localStorage.getItem('thesisflow-zoom');
@@ -263,17 +313,26 @@ const GraphCanvas: React.FC = () => {
       const zoom = parseFloat(savedZoom);
       if (!isNaN(zoom) && zoom >= 0.25 && zoom <= 3) graph.zoom(zoom);
     }
-    graph.on('scale', ({ sx }: X6ScaleEvent) => localStorage.setItem('thesisflow-zoom', String(sx)));
+    graph.on('scale', ({ sx }: X6ScaleEvent) =>
+      localStorage.setItem('thesisflow-zoom', String(sx))
+    );
 
-    graph.on('node:removed', ({ node }) => { syncVersion.current++; removeNode(node.id); });
-    graph.on('edge:removed', ({ edge }) => { syncVersion.current++; removeEdge(edge.id); });
+    graph.on('node:removed', () => {
+      syncVersion.current++;
+    });
+    graph.on('edge:removed', () => {
+      syncVersion.current++;
+    });
 
-    return () => { graph.dispose(); graphRef.current = null; };
+    return () => {
+      graph.dispose();
+      setGraphInstance(null);
+    };
   }, []);
 
   // Zustand -> X6 incremental sync
   const syncStoreToGraph = useCallback(() => {
-    const graph = graphRef.current;
+    const graph = graphInstance;
     if (!graph) return;
     const currentVersion = ++syncVersion.current;
     const storeNodes = useGraphStore.getState().nodes;
@@ -292,7 +351,8 @@ const GraphCanvas: React.FC = () => {
         const pos = existing.position();
         const size = existing.size();
         if (pos.x !== node.x || pos.y !== node.y) existing.position(node.x, node.y);
-        if (size.width !== node.width || size.height !== node.height) existing.resize(node.width, node.height);
+        if (size.width !== node.width || size.height !== node.height)
+          existing.resize(node.width, node.height);
         if (node.label !== undefined) existing.setAttrByPath('label/text', node.label ?? '');
       } else {
         graph.addNode(toX6NodeMeta(node));
@@ -311,12 +371,14 @@ const GraphCanvas: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => { syncStoreToGraph(); }, [nodes, edges, syncStoreToGraph]);
+  useEffect(() => {
+    syncStoreToGraph();
+  }, [nodes, edges, syncStoreToGraph, graphInstance]);
 
   useEffect(() => {
     const el = containerRef.current;
-    if (el && graphRef.current) (el as any).__graph__ = graphRef.current;
-  }, []);
+    if (el && graphInstance) (el as any).__graph__ = graphInstance;
+  }, [graphInstance]);
 
   // Edge style drag-and-drop
   useEffect(() => {
@@ -332,11 +394,13 @@ const GraphCanvas: React.FC = () => {
       e.preventDefault();
       const edgePresetId = e.dataTransfer?.getData('application/thesisflow-edge');
       if (!edgePresetId) return;
-      const graph = graphRef.current;
+      const graph = graphInstance;
       if (!graph) return;
       const rect = container.getBoundingClientRect();
       const point = graph.clientToLocal(e.clientX - rect.left, e.clientY - rect.top);
-      const cell = graph.getCells().find((c: Cell) => c.isNode?.() && c.getBBox().containsPoint(point));
+      const cell = graph
+        .getCells()
+        .find((c: Cell) => c.isNode?.() && c.getBBox().containsPoint(point));
       if (cell) {
         useGraphStore.getState().setEdgeStyleId(edgePresetId);
         useGraphStore.getState().enterEdgeCreationMode(cell.id);
@@ -345,7 +409,10 @@ const GraphCanvas: React.FC = () => {
     };
     container.addEventListener('dragover', handleDragOver);
     container.addEventListener('drop', handleDrop);
-    return () => { container.removeEventListener('dragover', handleDragOver); container.removeEventListener('drop', handleDrop); };
+    return () => {
+      container.removeEventListener('dragover', handleDragOver);
+      container.removeEventListener('drop', handleDrop);
+    };
   }, []);
 
   return (
@@ -360,7 +427,16 @@ const GraphCanvas: React.FC = () => {
           overlayStyle={{ zIndex: 1000 }}
           getPopupContainer={() => containerRef.current!}
         >
-          <div style={{ position: 'absolute', left: contextMenu.x, top: contextMenu.y, width: 0, height: 0, pointerEvents: 'none' }} />
+          <div
+            style={{
+              position: 'absolute',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              width: 0,
+              height: 0,
+              pointerEvents: 'none',
+            }}
+          />
         </Dropdown>
       )}
       {contextMenu && contextMenu.type === 'edge' && (
@@ -370,9 +446,11 @@ const GraphCanvas: React.FC = () => {
             onClick: ({ key }) => {
               if (key === 'editLabel') {
                 const edge = edges.find(e => e.id === contextMenu.id);
-                window.dispatchEvent(new CustomEvent('thesisflow:edit-edge-label', {
-                  detail: { edgeId: contextMenu.id, currentLabel: edge?.label ?? '' },
-                }));
+                window.dispatchEvent(
+                  new CustomEvent('thesisflow:edit-edge-label', {
+                    detail: { edgeId: contextMenu.id, currentLabel: edge?.label ?? '' },
+                  })
+                );
               } else {
                 handleMenuClick({ key });
               }
@@ -384,7 +462,16 @@ const GraphCanvas: React.FC = () => {
           overlayStyle={{ zIndex: 1000 }}
           getPopupContainer={() => containerRef.current!}
         >
-          <div style={{ position: 'absolute', left: contextMenu.x, top: contextMenu.y, width: 0, height: 0, pointerEvents: 'none' }} />
+          <div
+            style={{
+              position: 'absolute',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              width: 0,
+              height: 0,
+              pointerEvents: 'none',
+            }}
+          />
         </Dropdown>
       )}
       {contextMenu && contextMenu.type === 'canvas' && (
@@ -396,11 +483,20 @@ const GraphCanvas: React.FC = () => {
           overlayStyle={{ zIndex: 1000 }}
           getPopupContainer={() => containerRef.current!}
         >
-          <div style={{ position: 'absolute', left: contextMenu.x, top: contextMenu.y, width: 0, height: 0, pointerEvents: 'none' }} />
+          <div
+            style={{
+              position: 'absolute',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              width: 0,
+              height: 0,
+              pointerEvents: 'none',
+            }}
+          />
         </Dropdown>
       )}
-      <SearchPanel graph={graphRef.current} />
-      <EdgeLabelEditor graph={graphRef.current} />
+      <SearchPanel graph={graphInstance} />
+      <EdgeLabelEditor graph={graphInstance} />
     </>
   );
 };

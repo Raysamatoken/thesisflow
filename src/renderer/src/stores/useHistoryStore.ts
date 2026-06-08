@@ -29,7 +29,7 @@ export const useHistoryStore = create<HistoryState>()((set, get) => ({
       }
       return {
         past: newPast,
-        future: [], // Clear future on new action
+        future: [],
       };
     });
   },
@@ -46,8 +46,6 @@ export const useHistoryStore = create<HistoryState>()((set, get) => ({
       future: [current, ...future],
     });
 
-    // Return the previous state (the new last item in past)
-    // If past is now empty, return an empty state
     return newPast.length > 0 ? newPast[newPast.length - 1] : { nodes: [], edges: [] };
   },
 

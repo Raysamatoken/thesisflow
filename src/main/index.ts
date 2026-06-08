@@ -230,8 +230,15 @@ function registerIpcHandlers(): void {
   // Open file by absolute path (for recent files)
   ipcMain.handle(
     'open-file-by-path',
-    async (_event, filePath: string): Promise<{ project: ProjectFile; filePath: string } | null> => {
+    async (
+      _event,
+      filePath: string
+    ): Promise<{ project: ProjectFile; filePath: string } | null> => {
       try {
+        if (!filePath.endsWith('.thesisflow')) {
+          dialog.showErrorBox('文件格式错误', '仅支持打开 .thesisflow 文件。');
+          return null;
+        }
         const content = await fs.readFile(filePath, 'utf-8');
         const parsed = JSON.parse(content) as ProjectFile;
         if (!parsed.version || !Array.isArray(parsed.sheets)) {

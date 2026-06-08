@@ -5,7 +5,6 @@ import type { Graph } from '@antv/x6';
 import { useGraphStore, EDGE_PRESETS } from '../../stores/useGraphStore';
 import type { AnyNode, ModuleNodeShape } from '../../types';
 import { FlowNodeShape } from '../../types';
-import TemplatePanel from '../template-panel/TemplatePanel';
 
 interface NodeTemplate {
   shape: string;
@@ -98,7 +97,7 @@ const EdgePreviewSVG: React.FC<{ presetId: string }> = ({ presetId }) => {
   }
 };
 
-function useDragToCanvas(_templates: NodeTemplate[]) {
+function useDragToCanvas() {
   useEffect(() => {
     const container = document.getElementById('graph-container');
     if (!container) return;
@@ -208,7 +207,7 @@ const NodeCard: React.FC<{ template: NodeTemplate }> = ({ template }) => {
 };
 
 const SidePanel: React.FC = () => {
-  useDragToCanvas([...FLOW_TEMPLATES, ...MODULE_TEMPLATES]);
+  useDragToCanvas();
   const edgeStyleId = useGraphStore(s => s.edgeStyleId);
   const setEdgeStyleId = useGraphStore(s => s.setEdgeStyleId);
   const [searchQuery, setSearchQuery] = useState('');
@@ -330,11 +329,6 @@ const SidePanel: React.FC = () => {
       </div>
     </div>
   );
-};
-
-// Template panel section (shown in sidebar)
-export const SidePanelTemplates: React.FC = () => {
-  return <TemplatePanel />;
 };
 
 export default SidePanel;

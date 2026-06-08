@@ -144,9 +144,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       return {
         nodes,
         dirty: true,
-        sheets: state.sheets.map(s =>
-          s.id === state.activeSheetId ? { ...s, nodes } : s
-        ),
+        sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, nodes } : s)),
       };
     });
     pushHistoryIfNeeded(get);
@@ -163,9 +161,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
         edges,
         selectedNode: state.selectedNode?.id === nodeId ? null : state.selectedNode,
         dirty: true,
-        sheets: state.sheets.map(s =>
-          s.id === state.activeSheetId ? { ...s, nodes, edges } : s
-        ),
+        sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, nodes, edges } : s)),
       };
     });
     pushHistoryIfNeeded(get);
@@ -186,9 +182,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
             ? ({ ...state.selectedNode, ...patch } as AnyNode)
             : state.selectedNode,
         dirty: true,
-        sheets: state.sheets.map(s =>
-          s.id === state.activeSheetId ? { ...s, nodes } : s
-        ),
+        sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, nodes } : s)),
       };
     });
     pushHistoryIfNeeded(get);
@@ -200,9 +194,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       return {
         edges,
         dirty: true,
-        sheets: state.sheets.map(s =>
-          s.id === state.activeSheetId ? { ...s, edges } : s
-        ),
+        sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, edges } : s)),
       };
     });
     pushHistoryIfNeeded(get);
@@ -215,9 +207,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
         edges,
         selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
         dirty: true,
-        sheets: state.sheets.map(s =>
-          s.id === state.activeSheetId ? { ...s, edges } : s
-        ),
+        sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, edges } : s)),
       };
     });
     pushHistoryIfNeeded(get);
@@ -225,15 +215,11 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   updateEdge: (edgeId: string, patch: Partial<GraphEdge>) => {
     set((state: GraphState) => {
-      const edges = state.edges.map((e: GraphEdge) =>
-        e.id === edgeId ? { ...e, ...patch } : e
-      );
+      const edges = state.edges.map((e: GraphEdge) => (e.id === edgeId ? { ...e, ...patch } : e));
       return {
         edges,
         dirty: true,
-        sheets: state.sheets.map(s =>
-          s.id === state.activeSheetId ? { ...s, edges } : s
-        ),
+        sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, edges } : s)),
       };
     });
     pushHistoryIfNeeded(get);
@@ -314,9 +300,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       selectedNode: null,
       selectedEdgeId: null,
       dirty: true,
-      sheets: state.sheets.map(s =>
-        s.id === state.activeSheetId ? { ...s, nodes, edges } : s
-      ),
+      sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, nodes, edges } : s)),
     })),
 
   buildProjectFile: (): ProjectFile => {
@@ -585,9 +569,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const { selectedNodeIds, nodes } = get();
     if (selectedNodeIds.length < 3) return;
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
-    const sorted = [...selectedNodes].sort(
-      (a, b) => a.x + a.width / 2 - (b.x + b.width / 2)
-    );
+    const sorted = [...selectedNodes].sort((a, b) => a.x + a.width / 2 - (b.x + b.width / 2));
     const leftmost = sorted[0].x;
     const rightmost = sorted[sorted.length - 1].x + sorted[sorted.length - 1].width;
     const totalWidth = sorted.reduce((sum, n) => sum + n.width, 0);
@@ -599,9 +581,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       currentX += n.width + spacing;
     }
     set(state => {
-      const updated = state.nodes.map(n =>
-        posMap.has(n.id) ? { ...n, x: posMap.get(n.id)! } : n
-      );
+      const updated = state.nodes.map(n => (posMap.has(n.id) ? { ...n, x: posMap.get(n.id)! } : n));
       return {
         nodes: updated,
         dirty: true,
@@ -617,9 +597,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const { selectedNodeIds, nodes } = get();
     if (selectedNodeIds.length < 3) return;
     const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
-    const sorted = [...selectedNodes].sort(
-      (a, b) => a.y + a.height / 2 - (b.y + b.height / 2)
-    );
+    const sorted = [...selectedNodes].sort((a, b) => a.y + a.height / 2 - (b.y + b.height / 2));
     const topmost = sorted[0].y;
     const bottommost = sorted[sorted.length - 1].y + sorted[sorted.length - 1].height;
     const totalHeight = sorted.reduce((sum, n) => sum + n.height, 0);
@@ -631,9 +609,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       currentY += n.height + spacing;
     }
     set(state => {
-      const updated = state.nodes.map(n =>
-        posMap.has(n.id) ? { ...n, y: posMap.get(n.id)! } : n
-      );
+      const updated = state.nodes.map(n => (posMap.has(n.id) ? { ...n, y: posMap.get(n.id)! } : n));
       return {
         nodes: updated,
         dirty: true,
@@ -649,8 +625,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   undo: () => {
     const prev = useHistoryStore.getState().undo();
     if (prev) {
-      set({ _restoringFromHistory: true });
-      get().loadGraph(prev.nodes, prev.edges);
+      const state = get();
+      set({
+        _restoringFromHistory: true,
+        nodes: prev.nodes,
+        edges: prev.edges,
+        selectedNode: null,
+        selectedEdgeId: null,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: prev.nodes, edges: prev.edges } : s
+        ),
+      });
       set({ _restoringFromHistory: false });
     }
   },
@@ -658,8 +644,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   redo: () => {
     const next = useHistoryStore.getState().redo();
     if (next) {
-      set({ _restoringFromHistory: true });
-      get().loadGraph(next.nodes, next.edges);
+      const state = get();
+      set({
+        _restoringFromHistory: true,
+        nodes: next.nodes,
+        edges: next.edges,
+        selectedNode: null,
+        selectedEdgeId: null,
+        dirty: true,
+        sheets: state.sheets.map(s =>
+          s.id === state.activeSheetId ? { ...s, nodes: next.nodes, edges: next.edges } : s
+        ),
+      });
       set({ _restoringFromHistory: false });
     }
   },

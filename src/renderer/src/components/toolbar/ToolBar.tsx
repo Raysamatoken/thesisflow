@@ -24,7 +24,7 @@ import type { FlowNode, AnyNode, GraphEdge } from '../../types';
 import { getGraph } from '../../utils/getGraph';
 import { runAutoLayout } from '../../utils/autoLayout';
 import { exportPdf } from '../../utils/exportPdf';
-import { endpointId } from '../../utils/common';
+import { copySelection, duplicateNodes } from '../../utils/common';
 
 const { Text } = Typography;
 
@@ -52,14 +52,15 @@ const ToolBar: React.FC = () => {
   const projectName = useGraphStore(s => s.projectName);
   const dirty = useGraphStore(s => s.dirty);
   const currentFilePath = useGraphStore(s => s.currentFilePath);
-  const nodeCount = useGraphStore(s => s.nodes.length);
   const selectedNode = useGraphStore(s => s.selectedNode);
   const selectedEdgeId = useGraphStore(s => s.selectedEdgeId);
 
   const [clipboard, setClipboard] = useState<{ nodes: AnyNode[]; edges: GraphEdge[] } | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const clipboardRef = useRef(clipboard);
-  clipboardRef.current = clipboard;
+  useEffect(() => {
+    clipboardRef.current = clipboard;
+  }, [clipboard]);
 
   const handleNew = () => {
     const store = useGraphStore.getState();
@@ -193,9 +194,15 @@ const ToolBar: React.FC = () => {
     }
   };
 
-  const handleZoomIn = () => { getGraph()?.zoom(1.2); };
-  const handleZoomOut = () => { getGraph()?.zoom(0.8); };
-  const handleZoomReset = () => { getGraph()?.zoom(1); };
+  const handleZoomIn = () => {
+    getGraph()?.zoom(1.2);
+  };
+  const handleZoomOut = () => {
+    getGraph()?.zoom(0.8);
+  };
+  const handleZoomReset = () => {
+    getGraph()?.zoom(1);
+  };
   const handleZoomFit = () => {
     const graph = getGraph();
     if (graph && useGraphStore.getState().nodes.length > 0) {
@@ -230,45 +237,13 @@ const ToolBar: React.FC = () => {
         }
       } else if (isCtrl && e.key === 'c') {
         e.preventDefault();
-        const { selectedNode, selectedEdgeId, edges } = useGraphStore.getState();
-        if (selectedNode) {
-          const connectedEdges = edges.filter(
-            edge => endpointId(edge.source) === selectedNode.id || endpointId(edge.target) === selectedNode.id
-          );
-          setClipboard({ nodes: [selectedNode], edges: connectedEdges });
-        } else if (selectedEdgeId) {
-          const edgeToCopy = edges.find(edge => edge.id === selectedEdgeId);
-          if (edgeToCopy) {
-            setClipboard({ nodes: [], edges: [edgeToCopy] });
-          }
-        }
+        const sel = copySelection();
+        if (sel) setClipboard(sel);
       } else if (isCtrl && e.key === 'v') {
         e.preventDefault();
         const clip = clipboardRef.current;
         if (!clip) return;
-        const offset = 20;
-        const newNodes: AnyNode[] = clip.nodes.map(node => ({
-          ...node,
-          id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          x: node.x + offset,
-          y: node.y + offset,
-        }));
-        const nodeIdMap = new Map<string, string>();
-        newNodes.forEach((newNode, i) => {
-          nodeIdMap.set(clip.nodes[i].id, newNode.id);
-        });
-        const newEdges: GraphEdge[] = clip.edges.map((edge, i) => ({
-          ...edge,
-          id: `edge-${Date.now()}-${i}`,
-          source:
-            typeof edge.source === 'string'
-              ? (nodeIdMap.get(edge.source) ?? edge.source)
-              : { ...edge.source, cell: nodeIdMap.get(edge.source.cell) ?? edge.source.cell },
-          target:
-            typeof edge.target === 'string'
-              ? (nodeIdMap.get(edge.target) ?? edge.target)
-              : { ...edge.target, cell: nodeIdMap.get(edge.target.cell) ?? edge.target.cell },
-        }));
+        const { newNodes, newEdges } = duplicateNodes(clip.nodes, clip.edges);
         const store = useGraphStore.getState();
         newNodes.forEach(node => store.addNode(node));
         newEdges.forEach(edge => store.addEdge(edge));
@@ -414,7 +389,9 @@ const ToolBar: React.FC = () => {
             <Button
               size="small"
               icon={<UndoOutlined />}
-              onClick={() => { if (useGraphStore.getState().canUndo()) useGraphStore.getState().undo(); }}
+              onClick={() => {
+                if (useGraphStore.getState().canUndo()) useGraphStore.getState().undo();
+              }}
               disabled={!useGraphStore.getState().canUndo()}
             >
               撤销
@@ -424,7 +401,9 @@ const ToolBar: React.FC = () => {
             <Button
               size="small"
               icon={<RedoOutlined />}
-              onClick={() => { if (useGraphStore.getState().canRedo()) useGraphStore.getState().redo(); }}
+              onClick={() => {
+                if (useGraphStore.getState().canRedo()) useGraphStore.getState().redo();
+              }}
               disabled={!useGraphStore.getState().canRedo()}
             >
               重做
@@ -435,19 +414,8 @@ const ToolBar: React.FC = () => {
               size="small"
               icon={<CopyOutlined />}
               onClick={() => {
-                const state = useGraphStore.getState();
-                if (state.selectedNode) {
-                  const connectedEdges = state.edges.filter(
-                    e => endpointId(e.source) === state.selectedNode!.id ||
-                         endpointId(e.target) === state.selectedNode!.id
-                  );
-                  setClipboard({ nodes: [state.selectedNode], edges: connectedEdges });
-                } else if (state.selectedEdgeId) {
-                  const edgeToCopy = state.edges.find(e => e.id === state.selectedEdgeId);
-                  if (edgeToCopy) {
-                    setClipboard({ nodes: [], edges: [edgeToCopy] });
-                  }
-                }
+                const sel = copySelection();
+                if (sel) setClipboard(sel);
               }}
               disabled={!selectedNode && !selectedEdgeId}
             >
@@ -460,29 +428,7 @@ const ToolBar: React.FC = () => {
               onClick={() => {
                 const clip = clipboardRef.current;
                 if (!clip) return;
-                const offset = 20;
-                const newNodes: AnyNode[] = clip.nodes.map(node => ({
-                  ...node,
-                  id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                  x: node.x + offset,
-                  y: node.y + offset,
-                }));
-                const nodeIdMap = new Map<string, string>();
-                newNodes.forEach((newNode, i) => {
-                  nodeIdMap.set(clip.nodes[i].id, newNode.id);
-                });
-                const newEdges: GraphEdge[] = clip.edges.map((edge, i) => ({
-                  ...edge,
-                  id: `edge-${Date.now()}-${i}`,
-                  source:
-                    typeof edge.source === 'string'
-                      ? (nodeIdMap.get(edge.source) ?? edge.source)
-                      : { ...edge.source, cell: nodeIdMap.get(edge.source.cell) ?? edge.source.cell },
-                  target:
-                    typeof edge.target === 'string'
-                      ? (nodeIdMap.get(edge.target) ?? edge.target)
-                      : { ...edge.target, cell: nodeIdMap.get(edge.target.cell) ?? edge.target.cell },
-                }));
+                const { newNodes, newEdges } = duplicateNodes(clip.nodes, clip.edges);
                 const store = useGraphStore.getState();
                 newNodes.forEach(node => store.addNode(node));
                 newEdges.forEach(edge => store.addEdge(edge));

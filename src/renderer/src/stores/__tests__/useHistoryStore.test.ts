@@ -62,7 +62,7 @@ describe('useHistoryStore', () => {
 
     const result = useHistoryStore.getState().undo();
 
-    // After undo, we get the state before the last push (nodes1)
+    // Undo returns the previous state (before the last push)
     expect(result).not.toBeNull();
     expect(result!.nodes).toHaveLength(1);
     expect(result!.nodes[0].id).toBe('1');
