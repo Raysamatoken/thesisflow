@@ -67,7 +67,8 @@ export interface GraphState {
   removeNode: (nodeId: string) => void;
   updateNode: (
     nodeId: string,
-    patch: Partial<Pick<AnyNode, 'x' | 'y' | 'width' | 'height' | 'label' | 'data'>>
+    patch: Partial<Pick<AnyNode, 'x' | 'y' | 'width' | 'height' | 'label' | 'data'>>,
+    options?: { skipHistory?: boolean }
   ) => void;
 
   addEdge: (edge: GraphEdge) => void;
@@ -122,6 +123,15 @@ function pushHistoryIfNeeded(getState: () => GraphState) {
   }
 }
 
+const INITIAL_SHEET_ID = `sheet-initial`;
+const INITIAL_SHEET: GraphSheet = {
+  id: INITIAL_SHEET_ID,
+  name: '流程图 1',
+  type: GraphType.Flow,
+  nodes: [],
+  edges: [],
+};
+
 export const useGraphStore = create<GraphState>()((set, get) => ({
   nodes: [],
   edges: [],
@@ -131,8 +141,8 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   projectName: '未命名项目',
   currentFilePath: null,
   dirty: false,
-  sheets: [],
-  activeSheetId: null,
+  sheets: [INITIAL_SHEET],
+  activeSheetId: INITIAL_SHEET_ID,
   edgeStyleId: 'straight-arrow',
   edgeCreationMode: false,
   edgeCreationSourceId: null,
@@ -169,7 +179,8 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   updateNode: (
     nodeId: string,
-    patch: Partial<Pick<AnyNode, 'x' | 'y' | 'width' | 'height' | 'label' | 'data'>>
+    patch: Partial<Pick<AnyNode, 'x' | 'y' | 'width' | 'height' | 'label' | 'data'>>,
+    options?: { skipHistory?: boolean }
   ) => {
     set((state: GraphState) => {
       const nodes = state.nodes.map((n: AnyNode) =>
@@ -185,7 +196,9 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
         sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, nodes } : s)),
       };
     });
-    pushHistoryIfNeeded(get);
+    if (!options?.skipHistory) {
+      pushHistoryIfNeeded(get);
+    }
   },
 
   addEdge: (edge: GraphEdge) => {
@@ -278,7 +291,14 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   setCurrentFilePath: (path: string | null) => set({ currentFilePath: path }),
   markClean: () => set({ dirty: false }),
 
-  clearGraph: () =>
+  clearGraph: () => {
+    const defaultSheet: GraphSheet = {
+      id: `sheet-${Date.now()}`,
+      name: '流程图 1',
+      type: GraphType.Flow,
+      nodes: [],
+      edges: [],
+    };
     set({
       nodes: [],
       edges: [],
@@ -288,12 +308,13 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       edgeCreationSourceId: null,
       projectName: '未命名项目',
       currentFilePath: null,
-      sheets: [],
-      activeSheetId: null,
+      sheets: [defaultSheet],
+      activeSheetId: defaultSheet.id,
       dirty: false,
-    }),
+    });
+  },
 
-  loadGraph: (nodes: AnyNode[], edges: GraphEdge[]) =>
+  loadGraph: (nodes: AnyNode[], edges: GraphEdge[]) => {
     set((state: GraphState) => ({
       nodes,
       edges,
@@ -301,7 +322,9 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       selectedEdgeId: null,
       dirty: true,
       sheets: state.sheets.map(s => (s.id === state.activeSheetId ? { ...s, nodes, edges } : s)),
-    })),
+    }));
+    pushHistoryIfNeeded(get);
+  },
 
   buildProjectFile: (): ProjectFile => {
     const state = get();

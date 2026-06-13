@@ -51,6 +51,26 @@ function startAutoSaveTimer(): void {
   }, 30000);
 }
 
+const VALID_VERSIONS = ['1.0.0', '1.1.0'];
+
+function validateProjectFile(content: string): ProjectFile | null {
+  try {
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!parsed.version || !VALID_VERSIONS.includes(parsed.version)) return null;
+    if (!Array.isArray(parsed.sheets)) return null;
+    for (const sheet of parsed.sheets) {
+      if (typeof sheet.id !== 'string' || !sheet.id) return null;
+      if (typeof sheet.name !== 'string') return null;
+      if (!Array.isArray(sheet.nodes)) return null;
+      if (!Array.isArray(sheet.edges)) return null;
+    }
+    return parsed as ProjectFile;
+  } catch {
+    return null;
+  }
+}
+
 function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -75,6 +95,25 @@ function createMainWindow(): BrowserWindow {
   mainWindow.on('closed', () => {
     mainWindow = null;
     clearAutoSaveTimer();
+  });
+
+  // Prevent closing if there are unsaved changes — renderer will confirm
+  let pendingClose = false;
+  mainWindow.on('close', (e) => {
+    if (pendingClose) {
+      pendingClose = false;
+      return;
+    }
+    // Always prevent default close; let renderer decide
+    e.preventDefault();
+    mainWindow?.webContents.send('check-unsaved-before-close');
+  });
+
+  ipcMain.on('confirm-close', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      pendingClose = true;
+      mainWindow.close();
+    }
   });
 
   // Start auto-save timer after window loads
@@ -114,8 +153,8 @@ function registerIpcHandlers(): void {
       if (result.canceled || result.filePaths.length === 0) return null;
       const filePath = result.filePaths[0];
       const content = await fs.readFile(filePath, 'utf-8');
-      const parsed = JSON.parse(content) as ProjectFile;
-      if (!parsed.version || !Array.isArray(parsed.sheets)) {
+      const parsed = validateProjectFile(content);
+      if (!parsed) {
         dialog.showErrorBox('文件格式错误', '所选文件不是有效的 ThesisFlow 项目文件。');
         return null;
       }
@@ -194,9 +233,22 @@ function registerIpcHandlers(): void {
   });
   ipcMain.on('window:close', () => mainWindow?.close());
 
-  // Recent files
+  // Recent files — filter out files that no longer exist
   ipcMain.handle('get-recent-files', async (): Promise<string[]> => {
-    return loadRecentFiles();
+    const recent = await loadRecentFiles();
+    const existing: string[] = [];
+    for (const f of recent) {
+      try {
+        await fs.access(f);
+        existing.push(f);
+      } catch {
+        // file no longer exists, skip it
+      }
+    }
+    if (existing.length !== recent.length) {
+      await saveRecentFiles(existing);
+    }
+    return existing;
   });
 
   ipcMain.handle('clear-recent-files', async (): Promise<void> => {
@@ -240,8 +292,9 @@ function registerIpcHandlers(): void {
           return null;
         }
         const content = await fs.readFile(filePath, 'utf-8');
-        const parsed = JSON.parse(content) as ProjectFile;
-        if (!parsed.version || !Array.isArray(parsed.sheets)) {
+        const parsed = validateProjectFile(content);
+        if (!parsed) {
+          dialog.showErrorBox('文件格式错误', '所选文件不是有效的 ThesisFlow 项目文件。');
           return null;
         }
         await addRecentFile(filePath);

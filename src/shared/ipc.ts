@@ -36,15 +36,15 @@ export interface ThesisFlowAPI {
   maximize(): void;
   close(): void;
 
-  // ---- 菜单事件监听 ----
-  onMenuNewProject(callback: () => void): () => void;
-  onMenuOpenProject(callback: () => void): () => void;
-  onMenuSaveProject(callback: () => void): () => void;
-  onMenuExportImage(callback: (format: 'png' | 'svg') => void): () => void;
-
   // ---- 自动保存 ----
   /** 监听自动保存触发事件 */
   onAutoSave(callback: () => void): () => void;
+
+  // ---- 关闭前未保存确认 ----
+  /** 监听关闭前未保存检查事件 */
+  onCheckUnsavedBeforeClose(callback: () => void): () => void;
+  /** 通知主进程可以关闭窗口 */
+  confirmClose(): void;
 }
 
 declare global {

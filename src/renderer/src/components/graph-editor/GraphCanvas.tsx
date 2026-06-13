@@ -11,7 +11,8 @@ import { registerFlowShapes } from '../../registerNodes';
 import type { X6NodeEvent, X6EdgeEvent, X6SelectEvent, X6ScaleEvent } from '../../types/x6-events';
 import SearchPanel from './SearchPanel';
 import EdgeLabelEditor from './EdgeLabelEditor';
-import { endpointId } from '../../utils/common';
+import { endpointId, duplicateNodes } from '../../utils/common';
+import { GraphContext } from '../../contexts/GraphContext';
 
 function toX6NodeMeta(n: AnyNode) {
   return {
@@ -70,7 +71,6 @@ const GraphCanvas: React.FC = () => {
 
   const nodes = useGraphStore(s => s.nodes);
   const edges = useGraphStore(s => s.edges);
-  const edgeStyleId = useGraphStore(s => s.edgeStyleId);
   const setSelectedNode = useGraphStore(s => s.setSelectedNode);
   const setSelectedNodeIds = useGraphStore(s => s.setSelectedNodeIds);
   const setSelectedEdgeId = useGraphStore(s => s.setSelectedEdgeId);
@@ -79,9 +79,6 @@ const GraphCanvas: React.FC = () => {
   const removeEdge = useGraphStore(s => s.removeEdge);
   const addEdge = useGraphStore(s => s.addEdge);
   const updateNode = useGraphStore(s => s.updateNode);
-  const edgeCreationMode = useGraphStore(s => s.edgeCreationMode);
-  const edgeCreationSourceId = useGraphStore(s => s.edgeCreationSourceId);
-  const exitEdgeCreationMode = useGraphStore(s => s.exitEdgeCreationMode);
 
   // Context menu handlers
   const handleNodeContextMenu = ({ node, e }: X6NodeEvent) => {
@@ -118,12 +115,13 @@ const GraphCanvas: React.FC = () => {
   const handleMenuClick = ({ key }: { key: string }) => {
     if (!contextMenu) return;
     const { type, id } = contextMenu;
+    const { nodes: currentNodes, edges: currentEdges } = useGraphStore.getState();
     switch (key) {
       case 'copy':
         if (type === 'node') {
-          const node = nodes.find(n => n.id === id);
+          const node = currentNodes.find(n => n.id === id);
           if (node) {
-            const connectedEdges = edges.filter(
+            const connectedEdges = currentEdges.filter(
               edge => endpointId(edge.source) === id || endpointId(edge.target) === id
             );
             navigator.clipboard
@@ -132,13 +130,29 @@ const GraphCanvas: React.FC = () => {
             message.success('已复制节点');
           }
         } else if (type === 'edge') {
-          const edge = edges.find(e => e.id === id);
+          const edge = currentEdges.find(e => e.id === id);
           if (edge) {
             navigator.clipboard
               .writeText(JSON.stringify({ nodes: [], edges: [edge] }))
               .catch(() => {});
             message.success('已复制连线');
           }
+        }
+        break;
+      case 'paste':
+        {
+          navigator.clipboard.readText().then(text => {
+            if (!text) return;
+            try {
+              const data = JSON.parse(text);
+              if (data.nodes || data.edges) {
+                const { newNodes, newEdges } = duplicateNodes(data.nodes ?? [], data.edges ?? []);
+                const store = useGraphStore.getState();
+                newNodes.forEach(node => store.addNode(node));
+                newEdges.forEach(edge => store.addEdge(edge));
+              }
+            } catch { /* ignore non-JSON clipboard content */ }
+          }).catch(() => {});
         }
         break;
       case 'delete':
@@ -163,7 +177,7 @@ const GraphCanvas: React.FC = () => {
   ];
 
   const canvasContextMenuItems = [
-    { key: 'paste', label: '粘贴', icon: <EditOutlined />, disabled: true },
+    { key: 'paste', label: '粘贴', icon: <EditOutlined /> },
   ];
 
   useEffect(() => {
@@ -189,7 +203,8 @@ const GraphCanvas: React.FC = () => {
         highlight: true,
         snap: { radius: 20 },
         createEdge() {
-          const { lineAttrs, edgeRouter, edgeConnector } = createEdgeAttrs(edgeStyleId);
+          const currentEdgeStyleId = useGraphStore.getState().edgeStyleId;
+          const { lineAttrs, edgeRouter, edgeConnector } = createEdgeAttrs(currentEdgeStyleId);
           return this.createEdge({
             attrs: { line: lineAttrs },
             router: edgeRouter,
@@ -232,19 +247,20 @@ const GraphCanvas: React.FC = () => {
 
     graph.on('node:mouseenter', ({ node }: X6NodeEvent) => {
       showPorts(containerRef.current!.querySelectorAll('.x6-port-body'));
-      if (edgeCreationMode) node.setAttrs({ body: { stroke: '#1890ff', strokeWidth: 2 } });
+      if (useGraphStore.getState().edgeCreationMode) node.setAttrs({ body: { stroke: '#1890ff', strokeWidth: 2 } });
     });
     graph.on('node:mouseleave', ({ node }: X6NodeEvent) => {
       hidePorts(containerRef.current!.querySelectorAll('.x6-port-body'));
-      if (edgeCreationMode) node.setAttrs({ body: { stroke: '#333333', strokeWidth: 1.5 } });
+      if (useGraphStore.getState().edgeCreationMode) node.setAttrs({ body: { stroke: '#333333', strokeWidth: 1.5 } });
     });
 
     graph.on('node:click', ({ node }: X6NodeEvent) => {
       syncVersion.current++;
-      if (edgeCreationMode && edgeCreationSourceId && node.id !== edgeCreationSourceId) {
-        const { lineAttrs, edgeRouter, edgeConnector } = createEdgeAttrs(edgeStyleId);
+      const { edgeCreationMode: ecm, edgeCreationSourceId: srcId, addEdge: addEdgeFn, exitEdgeCreationMode: exitFn } = useGraphStore.getState();
+      if (ecm && srcId && node.id !== srcId) {
+        const { lineAttrs, edgeRouter, edgeConnector } = createEdgeAttrs(useGraphStore.getState().edgeStyleId);
         const newEdge = graph.addEdge({
-          source: edgeCreationSourceId,
+          source: srcId,
           target: node.id,
           attrs: { line: lineAttrs },
           router: edgeRouter,
@@ -252,8 +268,8 @@ const GraphCanvas: React.FC = () => {
           labels: [],
           zIndex: 0,
         });
-        addEdge(newEdge.toJSON() as unknown as GraphEdge);
-        exitEdgeCreationMode();
+        addEdgeFn(newEdge.toJSON() as unknown as GraphEdge);
+        exitFn();
       } else {
         setSelectedNode(node.toJSON() as unknown as AnyNode);
       }
@@ -369,6 +385,24 @@ const GraphCanvas: React.FC = () => {
     for (const edge of storeEdges) {
       if (!graphEdgeMap.has(edge.id)) graph.addEdge(toX6EdgeMeta(edge));
     }
+
+    for (const edge of storeEdges) {
+      const existing = graph.getCellById(edge.id);
+      if (existing && existing.isEdge()) {
+        const data = edge.data;
+        if (data) {
+          if (data.color !== undefined) {
+            existing.setAttrByPath('line/stroke', data.color);
+          }
+          if (data.strokeDasharray !== undefined) {
+            existing.setAttrByPath('line/strokeDasharray', data.strokeDasharray || null);
+          }
+          if (data.strokeWidth !== undefined) {
+            existing.setAttrByPath('line/strokeWidth', data.strokeWidth);
+          }
+        }
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -416,8 +450,26 @@ const GraphCanvas: React.FC = () => {
   }, []);
 
   return (
-    <>
+    <GraphContext.Provider value={graphInstance}>
       <div ref={containerRef} id="graph-container" style={{ width: '100%', height: '100%' }} />
+      {nodes.length === 0 && !contextMenu && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
+            color: '#bbb',
+            pointerEvents: 'none',
+            zIndex: 1,
+          }}
+        >
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>从左侧拖拽节点到此处开始</div>
+          <div style={{ fontSize: 13, marginTop: 8, color: '#ccc' }}>或从端口拖拽创建连线 · Shift+拖拽框选</div>
+        </div>
+      )}
       {contextMenu && contextMenu.type === 'node' && (
         <Dropdown
           menu={{ items: nodeContextMenuItems, onClick: handleMenuClick }}
@@ -495,9 +547,9 @@ const GraphCanvas: React.FC = () => {
           />
         </Dropdown>
       )}
-      <SearchPanel graph={graphInstance} />
-      <EdgeLabelEditor graph={graphInstance} />
-    </>
+      <SearchPanel />
+      <EdgeLabelEditor />
+    </GraphContext.Provider>
   );
 };
 

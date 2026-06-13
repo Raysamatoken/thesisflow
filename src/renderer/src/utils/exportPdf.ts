@@ -24,21 +24,29 @@ export async function exportPdf(projectName: string): Promise<boolean> {
   const width = parseFloat(svgEl.getAttribute('width') || '800');
   const height = parseFloat(svgEl.getAttribute('height') || '600');
 
-  // Create PDF with matching aspect ratio (A4 width, proportional height)
-  const pdfWidth = 210; // A4 width in mm
-  const pdfHeight = (height / width) * pdfWidth;
+  // Create PDF with matching aspect ratio
+  const isLandscape = width > height;
+  // For landscape: page width = longer dimension, page height = shorter dimension
+  const pageWidth = isLandscape ? 297 : 210; // A4 dimensions in mm
+  const pageHeight = isLandscape ? 210 : 297;
+  const scaleX = pageWidth / width;
+  const scaleY = pageHeight / height;
+  const scale = Math.min(scaleX, scaleY) * 0.9; // 0.9 for padding
+  const contentWidth = width * scale;
+  const contentHeight = height * scale;
+
   const pdf = new jsPDF({
-    orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+    orientation: isLandscape ? 'landscape' : 'portrait',
     unit: 'mm',
-    format: [pdfWidth, Math.max(pdfHeight, 100)],
+    format: 'a4',
   });
 
-  // Embed SVG into PDF
+  // Embed SVG into PDF (centered on page)
   await pdf.svg(svgEl, {
-    x: 0,
-    y: 0,
-    width: pdfWidth,
-    height: pdfHeight,
+    x: (pageWidth - contentWidth) / 2,
+    y: (pageHeight - contentHeight) / 2,
+    width: contentWidth,
+    height: contentHeight,
   });
 
   // Get PDF as data URI

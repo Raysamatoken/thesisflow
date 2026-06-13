@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Space, Typography, Tooltip, Divider, message, Dropdown } from 'antd';
+import { Button, Space, Typography, Tooltip, Divider, message, Dropdown, Modal } from 'antd';
 import {
   FileAddOutlined,
   FolderOpenOutlined,
@@ -17,8 +17,10 @@ import {
   CopyOutlined,
   ClockCircleOutlined,
   DeleteOutlined,
+  BulbOutlined,
 } from '@ant-design/icons';
 import { useGraphStore } from '../../stores/useGraphStore';
+import { useSettingsStore, type ThemeMode } from '../../stores/useSettingsStore';
 import { FlowNodeShape } from '../../types';
 import type { FlowNode, AnyNode, GraphEdge } from '../../types';
 import { getGraph } from '../../utils/getGraph';
@@ -54,6 +56,7 @@ const ToolBar: React.FC = () => {
   const currentFilePath = useGraphStore(s => s.currentFilePath);
   const selectedNode = useGraphStore(s => s.selectedNode);
   const selectedEdgeId = useGraphStore(s => s.selectedEdgeId);
+  const [zoomLevel, setZoomLevel] = useState(100);
 
   const [clipboard, setClipboard] = useState<{ nodes: AnyNode[]; edges: GraphEdge[] } | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
@@ -62,7 +65,22 @@ const ToolBar: React.FC = () => {
     clipboardRef.current = clipboard;
   }, [clipboard]);
 
-  const handleNew = () => {
+  const confirmUnsaved = (): Promise<boolean> => {
+    if (!dirty) return Promise.resolve(true);
+    return new Promise(resolve => {
+      Modal.confirm({
+        title: '未保存的更改',
+        content: '当前项目有未保存的更改，是否继续？',
+        okText: '继续',
+        cancelText: '取消',
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+  };
+
+  const handleNew = async () => {
+    if (!(await confirmUnsaved())) return;
     const store = useGraphStore.getState();
     store.clearGraph();
     store.setProjectName('未命名项目');
@@ -73,6 +91,7 @@ const ToolBar: React.FC = () => {
   };
 
   const handleOpen = async () => {
+    if (!(await confirmUnsaved())) return;
     const api = window.thesisFlow;
     if (!api) {
       message.warning('请在 Electron 环境中运行');
@@ -196,18 +215,32 @@ const ToolBar: React.FC = () => {
 
   const handleZoomIn = () => {
     getGraph()?.zoom(1.2);
+    updateZoomLevel();
   };
   const handleZoomOut = () => {
     getGraph()?.zoom(0.8);
+    updateZoomLevel();
   };
   const handleZoomReset = () => {
     getGraph()?.zoom(1);
+    setZoomLevel(100);
   };
   const handleZoomFit = () => {
     const graph = getGraph();
     if (graph && useGraphStore.getState().nodes.length > 0) {
       graph.zoomToFit({ padding: 40 });
+      updateZoomLevel();
     }
+  };
+
+  const updateZoomLevel = () => {
+    setTimeout(() => {
+      const graph = getGraph();
+      if (graph) {
+        const zoom = graph.zoom();
+        setZoomLevel(Math.round(zoom * 100));
+      }
+    }, 50);
   };
 
   // Keyboard shortcuts - all use getState() to avoid stale closures
@@ -258,10 +291,10 @@ const ToolBar: React.FC = () => {
         }
       } else if (isCtrl && e.key === '0') {
         e.preventDefault();
-        handleZoomReset();
+        handleZoomFit();
       } else if (isCtrl && e.key === '9') {
         e.preventDefault();
-        handleZoomFit();
+        handleZoomReset();
       } else if ((isCtrl && e.key === '=') || (isCtrl && e.key === '+')) {
         e.preventDefault();
         handleZoomIn();
@@ -330,6 +363,24 @@ const ToolBar: React.FC = () => {
           </Text>
         )}
       </div>
+      <Dropdown
+        menu={{
+          items: [
+            { key: 'light', label: '浅色' },
+            { key: 'dark', label: '深色' },
+            { key: 'high-contrast', label: '高对比' },
+          ],
+          selectedKeys: [useSettingsStore.getState().theme],
+          onClick: ({ key }) => {
+            useSettingsStore.getState().setTheme(key as ThemeMode);
+          },
+        }}
+        trigger={['click']}
+      >
+        <Button size="small" icon={<BulbOutlined />}>
+          主题
+        </Button>
+      </Dropdown>
 
       <Space size={4} split={<Divider type="vertical" />}>
         <Space size={4}>
@@ -474,6 +525,7 @@ const ToolBar: React.FC = () => {
               缩小
             </Button>
           </Tooltip>
+          <Text style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>{zoomLevel}%</Text>
           <Tooltip title="适应画布 (Ctrl+0)">
             <Button size="small" icon={<FullscreenOutlined />} onClick={handleZoomFit}>
               适应

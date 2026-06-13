@@ -68,29 +68,6 @@ const thesisFlowApi = {
     ipcRenderer.send('window:close');
   },
 
-  // ---- 菜单事件监听 ----
-
-  onMenuNewProject(callback: () => void): () => void {
-    const listener = () => callback();
-    ipcRenderer.on('menu:new-project', listener);
-    return () => ipcRenderer.removeListener('menu:new-project', listener);
-  },
-  onMenuOpenProject(callback: () => void): () => void {
-    const listener = () => callback();
-    ipcRenderer.on('menu:open-project', listener);
-    return () => ipcRenderer.removeListener('menu:open-project', listener);
-  },
-  onMenuSaveProject(callback: () => void): () => void {
-    const listener = () => callback();
-    ipcRenderer.on('menu:save-project', listener);
-    return () => ipcRenderer.removeListener('menu:save-project', listener);
-  },
-  onMenuExportImage(callback: (format: 'png' | 'svg') => void): () => void {
-    const listener = (_event: Electron.IpcRendererEvent, format: 'png' | 'svg') => callback(format);
-    ipcRenderer.on('menu:export-image', listener);
-    return () => ipcRenderer.removeListener('menu:export-image', listener);
-  },
-
   // ---- 自动保存 ----
 
   /** 监听自动保存触发事件 */
@@ -98,6 +75,20 @@ const thesisFlowApi = {
     const listener = () => callback();
     ipcRenderer.on('auto-save-trigger', listener);
     return () => ipcRenderer.removeListener('auto-save-trigger', listener);
+  },
+
+  // ---- 关闭前未保存确认 ----
+
+  /** 监听关闭前未保存检查事件 */
+  onCheckUnsavedBeforeClose(callback: () => void): () => void {
+    const listener = () => callback();
+    ipcRenderer.on('check-unsaved-before-close', listener);
+    return () => ipcRenderer.removeListener('check-unsaved-before-close', listener);
+  },
+
+  /** 通知主进程可以关闭窗口 */
+  confirmClose(): void {
+    ipcRenderer.send('confirm-close');
   },
 };
 

@@ -40,11 +40,16 @@ const PropertyPanel: React.FC = () => {
         color: selectedNode.data?.color ?? '#ffffff',
         borderColor: selectedNode.data?.borderColor ?? '#333333',
         fontColor: selectedNode.data?.fontColor ?? '#333333',
+        width: selectedNode.width,
+        height: selectedNode.height,
         remark: selectedNode.data?.remark ?? '',
       });
     } else if (selectedEdge) {
       form.setFieldsValue({
         label: selectedEdge.label ?? '',
+        color: selectedEdge.data?.color ?? '#333333',
+        strokeDasharray: selectedEdge.data?.strokeDasharray ?? '',
+        strokeWidth: selectedEdge.data?.strokeWidth ?? 1.5,
         remark: selectedEdge.data?.remark ?? '',
       });
     } else {
@@ -56,6 +61,8 @@ const PropertyPanel: React.FC = () => {
     if (selectedNode) {
       if (field === 'label') {
         updateNode(selectedNode.id, { label: value as string });
+      } else if (field === 'width' || field === 'height') {
+        updateNode(selectedNode.id, { [field]: value as number });
       } else {
         updateNode(selectedNode.id, {
           data: { ...selectedNode.data, [field]: value },
@@ -219,6 +226,24 @@ const PropertyPanel: React.FC = () => {
             onChange={(_, hex) => handleFieldChange('fontColor', hex)}
           />
         </Form.Item>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Form.Item label="宽度" name="width" style={{ flex: 1 }}>
+            <InputNumber
+              min={20}
+              max={2000}
+              style={{ width: '100%' }}
+              onChange={val => handleFieldChange('width', val ?? 140)}
+            />
+          </Form.Item>
+          <Form.Item label="高度" name="height" style={{ flex: 1 }}>
+            <InputNumber
+              min={20}
+              max={2000}
+              style={{ width: '100%' }}
+              onChange={val => handleFieldChange('height', val ?? 60)}
+            />
+          </Form.Item>
+        </div>
         <Form.Item label="备注" name="remark">
           <TextArea
             rows={3}

@@ -1,15 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Input } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
-import type { Graph } from '@antv/x6';
+import { Input, Button } from 'antd';
+import { SearchOutlined, CloseOutlined } from '@ant-design/icons';
 import type { AnyNode } from '../../types';
 import { useGraphStore } from '../../stores/useGraphStore';
+import { useGraphContext } from '../../contexts/GraphContext';
 
-interface SearchPanelProps {
-  graph: Graph | null;
-}
-
-const SearchPanel: React.FC<SearchPanelProps> = ({ graph }) => {
+const SearchPanel: React.FC = () => {
+  const graph = useGraphContext();
   const nodes = useGraphStore(s => s.nodes);
   const setSelectedNode = useGraphStore(s => s.setSelectedNode);
 
@@ -101,6 +98,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ graph }) => {
           size="middle"
         />
         <span style={{ fontSize: 12, color: '#888' }}>{results.length} 个结果</span>
+        <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setOpen(false)} />
       </div>
       <div style={{ maxHeight: 300, overflow: 'auto' }}>
         {results.length === 0 ? (

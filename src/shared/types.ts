@@ -69,18 +69,8 @@ export interface FlowNode extends Omit<Node.Metadata, 'data'> {
 
 /** 模块图节点形状枚举 */
 export enum ModuleNodeShape {
-  /** 展示层 */
-  Presentation = 'module-presentation',
-  /** 业务逻辑层 */
-  Business = 'module-business',
-  /** 数据访问层 */
-  DataAccess = 'module-data-access',
-  /** 外部系统 / 第三方服务 */
-  External = 'module-external',
-  /** 数据库 */
-  Database = 'module-database',
-  /** 通用模块（矩形） */
-  Generic = 'module-generic',
+  /** 通用模块（矩形带副标题） */
+  Generic = 'module-component',
 }
 
 /** 模块图节点的业务数据 */
@@ -139,6 +129,10 @@ export interface EdgeData extends BusinessData {
   label?: string;
   /** 标签位置 */
   labelPosition?: EdgeLabelPosition;
+  /** 连线颜色 */
+  strokeDasharray?: string;
+  /** 连线线宽 */
+  strokeWidth?: number;
 }
 
 /**

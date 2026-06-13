@@ -1,24 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Input, Modal } from 'antd';
-import type { Graph } from '@antv/x6';
 import { useGraphStore } from '../../stores/useGraphStore';
+import { useGraphContext } from '../../contexts/GraphContext';
 
-interface EdgeLabelEditorProps {
-  graph: Graph | null;
-}
-
-const EdgeLabelEditor: React.FC<EdgeLabelEditorProps> = ({ graph }) => {
+const EdgeLabelEditor: React.FC = () => {
+  const graph = useGraphContext();
   const updateEdge = useGraphStore(s => s.updateEdge);
 
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
 
-  const openEditor = (edgeId: string, currentLabel: string) => {
+  const openEditor = useCallback((edgeId: string, currentLabel: string) => {
     setValue(currentLabel);
     setEditingEdgeId(edgeId);
     setOpen(true);
-  };
+  }, []);
 
   const handleOk = () => {
     if (editingEdgeId) {
@@ -47,7 +44,7 @@ const EdgeLabelEditor: React.FC<EdgeLabelEditorProps> = ({ graph }) => {
     }) as EventListener;
     window.addEventListener('thesisflow:edit-edge-label', handler);
     return () => window.removeEventListener('thesisflow:edit-edge-label', handler);
-  }, []);
+  }, [openEditor]);
 
   return (
     <Modal

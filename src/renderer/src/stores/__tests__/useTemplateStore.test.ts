@@ -11,12 +11,7 @@ vi.mock('../../../types', () => ({
     SubProcess: 'flow-subprocess',
   },
   ModuleNodeShape: {
-    Generic: 'module-generic',
-    Presentation: 'module-presentation',
-    Business: 'module-business',
-    DataAccess: 'module-data-access',
-    External: 'module-external',
-    Database: 'module-database',
+    Generic: 'module-component',
   },
 }));
 
